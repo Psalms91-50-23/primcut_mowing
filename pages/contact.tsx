@@ -116,7 +116,7 @@ const Contact: React.FC<Props> = () => {
 
         <button
           type="submit"
-          className="w-full bg-green-700 text-white py-2 rounded hover:bg-green-800 transition"
+          className="w-full bg-green-700 text-white py-2 rounded hover:bg-green-800 hover:cursor-pointer transition"
         >
           Send Message
         </button>

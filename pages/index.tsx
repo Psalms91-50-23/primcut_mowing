@@ -10,16 +10,12 @@ const Home: React.FC<Props> = () => {
       <NavBar />
 
       <header className="relative w-full h-[450px] group">
-        {/* Background image */}
         <div
           className="absolute inset-0 bg-cover bg-center transition-opacity duration-300 opacity-60 group-hover:opacity-80"
           style={{ backgroundImage: "url('/images/perfect_lawn.jpeg')" }}
         ></div>
-
-        {/* Semi-transparent overlay */}
         <div className="absolute inset-0 bg-black/50"></div>
 
-        {/* Content: fully opaque */}
         <div className="relative z-10 flex flex-col justify-center items-center h-full text-center text-white px-4">
           <h2 className="text-5xl md:text-6xl font-bold mb-4">Your Lawn, Our Passion</h2>
           <p className="text-xl md:text-2xl font-semibold mb-6">
