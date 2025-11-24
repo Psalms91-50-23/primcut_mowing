@@ -5,7 +5,7 @@ export const sendEmail = async (name: string, phone: string,  email: string, mes
     // host: process.env.EMAIL_HOST,
     // port: Number(process.env.EMAIL_PORT),
     service: "Gmail",
-    secure: false,
+    secure: true,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
