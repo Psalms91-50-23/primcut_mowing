@@ -1,7 +1,5 @@
-// pages/contact.tsx
 import React from "react";
 import NavBar from "../components/NavBar";
-
 
 type Props = {};
 
@@ -37,11 +35,11 @@ const Contact: React.FC<Props> = () => {
   };
 
   return (
-    <div className="w-screen min-h-screen flex flex-col items-center justify-start p-6 bg-green-50">
+    <div className="w-screen min-h-screen flex flex-col items-center justify-start bg-green-50 text-black">
       <NavBar />
 
-      <div className="mt-10 text-center space-y-2">
-        <h1 className="text-3xl font-bold mb-6">Contact Us</h1>
+      <div className="mt-10 text-center space-y-2 px-4">
+        <h1 className="text-3xl md:text-4xl font-bold mb-6">Contact Us</h1>
         <p className="text-lg">
           <span className="font-semibold">Phone:</span> 021 123 4567
         </p>
@@ -73,6 +71,7 @@ const Contact: React.FC<Props> = () => {
             required
           />
         </div>
+
         <div>
           <label htmlFor="phone" className="block font-medium mb-1">
             Phone Number
@@ -86,6 +85,7 @@ const Contact: React.FC<Props> = () => {
             required
           />
         </div>
+
         <div>
           <label htmlFor="email" className="block font-medium mb-1">
             Email
