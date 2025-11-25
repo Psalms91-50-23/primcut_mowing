@@ -6,7 +6,7 @@ import NavBar from '../components/NavBar'
 function PrimCut({ Component, pageProps }: AppProps) {
   return <>
     <NavBar/>
-    <Component {...pageProps} />  // renders the current page
+    <Component {...pageProps} />  
   </>
   
 }
