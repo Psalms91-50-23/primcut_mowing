@@ -38,6 +38,9 @@ const Contact: React.FC<Props> = () => {
     <div className="w-screen min-h-screen flex flex-col items-center justify-start bg-green-50 text-black">
       <div className="mt-10 text-center space-y-2 px-4">
         <h1 className="text-3xl md:text-4xl font-bold mb-6">Contact Us</h1>
+         <p className="text-xl italic font-bold md:text-base text-gray-700 mb-4">
+          Our team strives to reply to all messages within 2 business working days.
+        </p>
         <p className="text-lg">
           <span className="font-semibold">Phone:</span> 021 123 4567
         </p>
