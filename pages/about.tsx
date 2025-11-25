@@ -17,11 +17,11 @@ const About = (props: Props) => {
       </div>
 
       <p className="text-lg md:text-xl mb-6">
-        We are two passionate locals who started PrimCut Mowing with a simple goal: to help homeowners and landlords maintain beautiful, healthy, and tidy properties. From lawns and gardens to rubbish removal and end-of-lease property care, we bring professionalism, reliability, and attention to detail to every job.
+        We are two passionate locals who started PrimCut Mowing with a simple goal: to help homeowners and landlords maintain beautiful, healthy, and tidy properties. From lawns to rubbish removal and end-of-lease property care, we bring professionalism, reliability, and attention to detail to every job.
       </p>
 
       <p className="text-lg md:text-xl mb-6">
-        Our experience and hands-on approach mean we understand the challenges of keeping a property in top shape. We specialize in end-of-lease maintenance, ensuring rental properties are clean, well-kept, and ready for the next tenant. We also provide weed control, mowing, garden maintenance, and rubbish collection to keep every property looking its best.
+        Our experience and hands-on approach mean we understand the challenges of keeping a property in top shape. We specialize in end-of-lease maintenance, ensuring rental properties are clean, well-kept, and ready for the next tenant. We also provide weed control, mowing, and rubbish collection to keep every property looking its best.
       </p>
 
       <p className="text-lg md:text-xl">
