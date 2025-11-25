@@ -18,7 +18,7 @@ const Home: React.FC<Props> = () => {
             Your Lawn, Our Passion
           </h2>
           <p className="text-xl md:text-2xl font-semibold mb-6">
-            Professional mowing and garden care for a perfectly maintained yard.
+            Expert lawn mowing, efficient rubbish removal, and reliable property maintenance to keep your home looking its absolute best.
           </p>
           <Link href="/contact">
             <button className="bg-green-700 text-white px-6 py-3 rounded hover:bg-green-800 transition hover:cursor-pointer hover:font-bold">
