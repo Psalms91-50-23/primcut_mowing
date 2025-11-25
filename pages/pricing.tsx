@@ -5,9 +5,9 @@ type Props = {}
 const pricing = (props: Props) => {
   return (
     <div>
-        <div className="">
+        {/* <div className="">
             <NavBar/>
-        </div>
+        </div> */}
         <div className="">
             <h1>
                 Pricing

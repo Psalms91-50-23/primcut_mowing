@@ -36,7 +36,7 @@ const Contact: React.FC<Props> = () => {
 
   return (
     <div className="w-screen min-h-screen flex flex-col items-center justify-start bg-green-50 text-black">
-      <NavBar />
+      {/* <NavBar /> */}
 
       <div className="mt-10 text-center space-y-2 px-4">
         <h1 className="text-3xl md:text-4xl font-bold mb-6">Contact Us</h1>
