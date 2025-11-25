@@ -81,7 +81,7 @@ const Home: React.FC<Props> = () => {
           ].map((area, index) => (
             <div
               key={area}
-              className={`opacity-0 translate-x-[-50px] animate-slide-in`}
+              className={`opacity-0 translate-x-[-150px] animate-slide-in`}
               style={{ animationDelay: `${index * 0.15}s` }}
             >
               <span className="px-4 py-2 rounded-full bg-green-100 text-green-800 font-medium shadow hover:shadow-lg transition text-center">
