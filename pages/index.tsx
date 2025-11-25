@@ -58,38 +58,41 @@ const Home: React.FC<Props> = () => {
           Experienced, reliable, and committed to keeping your yard looking its best.
         </p>
       </section>
-      <section className="py-16 px-6 md:px-16 bg-white text-black text-center">
-        <h3 className="text-3xl md:text-4xl font-bold mb-6">Areas We Cover</h3>
-        <p className="text-lg md:text-xl mb-10">
-          We proudly serve suburbs across Hutt Valley, including:
-        </p>
+      <section className="flex flex-col py-16 px-6 md:px-16 bg-white text-black text-center">
+        <div className="">
+          <h3 className="text-3xl md:text-4xl font-bold mb-6">Areas We Cover</h3>
+          <p className="text-lg md:text-xl mb-10">
+            We proudly serve suburbs across Hutt Valley, including:
+          </p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 justify-items-center mx-auto max-w-5xl">
-          {[
-            "Petone",
-            "Waiwhetu",
-            "Waterloo",
-            "Epuni",
-            "Fairfield",
-            "Woburn",
-            "Lower Hutt",
-            "Naenae",
-            "Taita",
-            "Stokes Valley",
-            "Silverstream",
-            "Upper Hutt",
-          ].map((area, index) => (
-            <div
-              key={area}
-              className={`opacity-0 translate-x-[-150px] animate-slide-in`}
-              style={{ animationDelay: `${index * 0.15}s` }}
-            >
-              <span className="px-4 py-2 rounded-full bg-green-100 text-green-800 font-medium shadow hover:shadow-lg transition text-center">
-                {area}
-              </span>
-            </div>
-          ))}
         </div>
+
+        <div className="grid grid-cols-2 gap-2 justify-items-center mx-auto w-full sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 w-full px-2">
+  {[
+    "Petone",
+    "Waiwhetu",
+    "Waterloo",
+    "Epuni",
+    "Fairfield",
+    "Woburn",
+    "Lower Hutt",
+    "Naenae",
+    "Taita",
+    "Stokes Valley",
+    "Silverstream",
+    "Upper Hutt",
+  ].map((area, index) => (
+    <div
+      key={area}
+      className={`opacity-0 translate-x-[0px] animate-slide-in`}
+      style={{ animationDelay: `${index * 0.10}s` }}
+    >
+      <span className="px-3 py-2 rounded-full bg-green-100 text-green-800 font-medium shadow hover:shadow-lg transition text-center block">
+        {area}
+      </span>
+    </div>
+  ))}
+</div>
       </section>
     </>
   );
