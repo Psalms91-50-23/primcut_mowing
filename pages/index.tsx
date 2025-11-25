@@ -86,6 +86,10 @@ const Home: React.FC<Props> = () => {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
           <div className="p-6 border rounded shadow hover:shadow-lg transition">
+            <h4 className="font-semibold mb-2 text-xl">Property Maintenance</h4>
+            <p>Licensed Building Practitioners with decades of experience, specialising in end-of-lease maintenance to prepare rental properties for the next tenant.</p>
+          </div>
+          <div className="p-6 border rounded shadow hover:shadow-lg transition">
             <h4 className="font-semibold mb-2 text-xl">Lawn Mowing</h4>
             <p>Fast and precise mowing for lawns of all sizes.</p>
           </div>
@@ -101,10 +105,7 @@ const Home: React.FC<Props> = () => {
             <h4 className="font-semibold mb-2 text-xl">Rubbish Collecting</h4>
             <p>We remove garden debris, old furniture, and unwanted items responsibly.</p>
           </div>
-          <div className="p-6 border rounded shadow hover:shadow-lg transition">
-            <h4 className="font-semibold mb-2 text-xl">Property Maintenance</h4>
-            <p>Specializing in end-of-lease maintenance to prepare rental properties for the next tenant.</p>
-          </div>
+          
         </div>
       </section>
       <section className="py-16 px-6 md:px-16 bg-green-50 text-black text-center">

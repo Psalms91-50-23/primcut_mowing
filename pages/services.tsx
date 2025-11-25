@@ -9,6 +9,13 @@ const Services = (props: Props) => {
         <h3 className="text-3xl md:text-4xl font-bold mb-10 text-center">Our Services</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
           <div className="p-6 border rounded shadow hover:shadow-lg transition hover:scale-105">
+            <h4 className="font-semibold mb-2 text-xl">Property Maintenance</h4>
+            <p>Specializing in end-of-lease maintenance to prepare rental properties for the next tenant.</p>
+            <p className="mt-2 text-sm text-gray-700">
+              As Licensed Building Practitioners (LBPs), we offer trusted and compliant property maintenance services, specialising in end-of-lease repairs, touch-ups, and preparing rental homes for the next tenants.
+            </p>
+          </div>
+          <div className="p-6 border rounded shadow hover:shadow-lg transition hover:scale-105">
             <h4 className="font-semibold mb-2 text-xl">Lawn Mowing</h4>
             <p>Fast and precise mowing for lawns of all sizes, keeping your yard neat and healthy.</p>
             <p className="mt-2 text-sm text-gray-700">
@@ -29,13 +36,7 @@ const Services = (props: Props) => {
               Ideal for edges, fences, pathways, and tight spots. We remove overgrowth and maintain a clean, professional garden appearance.
             </p>
           </div>
-          <div className="p-6 border rounded shadow hover:shadow-lg transition hover:scale-105">
-            <h4 className="font-semibold mb-2 text-xl">Property Maintenance</h4>
-            <p>Specializing in end-of-lease maintenance to prepare rental properties for the next tenant.</p>
-            <p className="mt-2 text-sm text-gray-700">
-              After tenants move out, we restore properties to tenancy standards. Services include lawn care, garden cleanup, minor repairs, rubbish removal, and general tidying, ensuring the property is move-in ready and compliant with lease agreements.
-            </p>
-          </div>
+          
           <div className="p-6 border rounded shadow hover:shadow-lg transition hover:scale-105">
             <h4 className="font-semibold mb-2 text-xl">Rubbish Collecting</h4>
             <p>Responsible removal of garden debris, old furniture, and unwanted items.</p>

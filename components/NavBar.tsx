@@ -10,7 +10,7 @@ const NavBar =  () => {
     return (
     <>
       <nav className="fixed top-0 left-0 w-full flex justify-between items-center p-6 bg-green-500 text-white z-50 shadow-md">
-        <h1 className="font-bold text-xl">PrimCut Mowing</h1>
+        <h1 className="font-bold text-xl">PrimCut</h1>
         {!isMobile && (
           <ul className="flex flex-row space-x-6 text-base md:space-x-10">
             <li className="font-bold enlarge"><Link href="/">Home</Link></li>
