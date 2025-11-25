@@ -36,8 +36,6 @@ const Contact: React.FC<Props> = () => {
 
   return (
     <div className="w-screen min-h-screen flex flex-col items-center justify-start bg-green-50 text-black">
-      {/* <NavBar /> */}
-
       <div className="mt-10 text-center space-y-2 px-4">
         <h1 className="text-3xl md:text-4xl font-bold mb-6">Contact Us</h1>
         <p className="text-lg">
@@ -53,7 +51,6 @@ const Contact: React.FC<Props> = () => {
           <span className="font-semibold">Hours:</span> Mon–Fri, 8am – 5pm
         </p>
       </div>
-
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-md bg-white p-6 rounded shadow space-y-4 mt-10"
@@ -71,7 +68,6 @@ const Contact: React.FC<Props> = () => {
             required
           />
         </div>
-
         <div>
           <label htmlFor="phone" className="block font-medium mb-1">
             Phone Number
@@ -85,7 +81,6 @@ const Contact: React.FC<Props> = () => {
             required
           />
         </div>
-
         <div>
           <label htmlFor="email" className="block font-medium mb-1">
             Email
@@ -99,7 +94,6 @@ const Contact: React.FC<Props> = () => {
             required
           />
         </div>
-
         <div>
           <label htmlFor="message" className="block font-medium mb-1">
             Message
@@ -113,7 +107,6 @@ const Contact: React.FC<Props> = () => {
             required
           ></textarea>
         </div>
-
         <button
           type="submit"
           className="w-full bg-green-700 text-white py-2 rounded hover:bg-green-800 hover:cursor-pointer transition"

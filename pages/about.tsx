@@ -7,12 +7,11 @@ const About = (props: Props) => {
     <div className="py-16 px-6 md:px-16 bg-white text-black">
        <div className="relative w-full h-[650px] md:h-[650px] mb-8">
         <img
-          src="/images/about_us.jpg" // Replace with your image path
+          src="/images/about_us.jpg"
           alt="About Us"
           className="w-full h-full object-cover rounded shadow-lg"
         />
         <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
-          {/* <h1 className="text-3xl md:text-5xl font-bold text-white">About Us</h1> */}
         </div>
       </div>
 

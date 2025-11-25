@@ -1,24 +1,77 @@
-import React from "react";
-import NavBar from "../components/NavBar";
+import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 
 type Props = {};
 
 const Home: React.FC<Props> = () => {
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    const items = grid.querySelectorAll(".area-item");
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const isVisible = entry.intersectionRatio > 0.3;
+
+          if (isVisible) {
+            items.forEach((item, index) => {
+              const el = item as HTMLElement;
+              el.style.animationDelay = `${index * 0.1}s`;
+              el.classList.add("animate-slide-in");
+            });
+          } else {
+
+            items.forEach((item) => {
+              const el = item as HTMLElement;
+              el.classList.remove("animate-slide-in");
+            });
+          }
+        });
+      },
+      { threshold: 0.3 }
+    );
+
+    observer.observe(grid);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const areas = [
+    "Petone",
+    "Waiwhetu",
+    "Waterloo",
+    "Epuni",
+    "Fairfield",
+    "Woburn",
+    "Lower Hutt",
+    "Naenae",
+    "Taita",
+    "Stokes Valley",
+    "Silverstream",
+    "Upper Hutt",
+  ];
+
   return (
     <>
-      <header className="relative w-full h-[450px] overflow-hidden">
+      <header className="relative w-full h-[450px] overflow-hidden group">
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-60 bg-slide-left"
+          className="absolute inset-0 bg-cover bg-center opacity-80 transition-opacity duration-300 
+               group-hover:opacity-100 sm:opacity-60 sm:group-hover:opacity-90 
+               opacity-0 bg-slide-left"
           style={{ backgroundImage: "url('/images/perfect_lawn.jpeg')" }}
         ></div>
-        <div className="absolute inset-0 bg-black/20"></div>
-        <div className="relative z-10 flex flex-col justify-center items-center h-full text-center text-white px-4 text-slide-right">
+        <div className="absolute inset-0 bg-black/20 transition-opacity duration-300 group-hover:bg-black/10 sm:bg-black/40 sm:group-hover:bg-black/20"></div>
+        <div className="relative z-10 flex flex-col justify-center items-center h-full text-center text-white px-4 opacity-0 text-slide-right">
           <h2 className="text-5xl md:text-6xl font-bold mb-4">
             Your Lawn, Our Passion
           </h2>
           <p className="text-xl md:text-2xl font-semibold mb-6">
-            Expert lawn mowing, efficient rubbish removal, and reliable property maintenance to keep your home looking its absolute best.
+            Expert lawn mowing, efficient rubbish removal, and reliable property
+            maintenance to keep your home looking its absolute best.
           </p>
           <Link href="/contact">
             <button className="bg-green-700 text-white px-6 py-3 rounded hover:bg-green-800 transition hover:cursor-pointer hover:font-bold">
@@ -28,12 +81,14 @@ const Home: React.FC<Props> = () => {
         </div>
       </header>
       <section className="py-16 px-6 md:px-16 bg-white text-black">
-        <h3 className="text-3xl md:text-4xl font-bold mb-10 text-center">Our Services</h3>
+        <h3 className="text-3xl md:text-4xl font-bold mb-10 text-center">
+          Our Services
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-            <div className="p-6 border rounded shadow hover:shadow-lg transition">
-              <h4 className="font-semibold mb-2 text-xl">Lawn Mowing</h4>
-              <p>Fast and precise mowing for lawns of all sizes.</p>
-            </div>
+          <div className="p-6 border rounded shadow hover:shadow-lg transition">
+            <h4 className="font-semibold mb-2 text-xl">Lawn Mowing</h4>
+            <p>Fast and precise mowing for lawns of all sizes.</p>
+          </div>
           <div className="p-6 border rounded shadow hover:shadow-lg transition">
             <h4 className="font-semibold mb-2 text-xl">Weed Spraying</h4>
             <p>Keep your garden and lawn weed-free with safe and effective spraying.</p>
@@ -52,47 +107,35 @@ const Home: React.FC<Props> = () => {
           </div>
         </div>
       </section>
-      <section className="py-16 px-6 md:px-16 bg-green-50 text-black text-center ">
+      <section className="py-16 px-6 md:px-16 bg-green-50 text-black text-center">
         <h3 className="text-3xl md:text-4xl font-bold mb-4">Why Choose Us?</h3>
         <p className="text-lg md:text-xl">
           Experienced, reliable, and committed to keeping your yard looking its best.
         </p>
       </section>
       <section className="flex flex-col py-16 px-6 md:px-16 bg-white text-black text-center">
-        <div className="">
+        <div className="mb-10">
           <h3 className="text-3xl md:text-4xl font-bold mb-6">Areas We Cover</h3>
-          <p className="text-lg md:text-xl mb-10">
+          <p className="text-lg md:text-xl">
             We proudly serve suburbs across Hutt Valley, including:
           </p>
-
         </div>
-
-        <div className="grid grid-cols-2 gap-2 justify-items-center mx-auto w-full sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 w-full px-2">
-  {[
-    "Petone",
-    "Waiwhetu",
-    "Waterloo",
-    "Epuni",
-    "Fairfield",
-    "Woburn",
-    "Lower Hutt",
-    "Naenae",
-    "Taita",
-    "Stokes Valley",
-    "Silverstream",
-    "Upper Hutt",
-  ].map((area, index) => (
-    <div
-      key={area}
-      className={`opacity-0 translate-x-[0px] animate-slide-in`}
-      style={{ animationDelay: `${index * 0.10}s` }}
-    >
-      <span className="px-3 py-2 rounded-full bg-green-100 text-green-800 font-medium shadow hover:shadow-lg transition text-center block">
-        {area}
-      </span>
-    </div>
-  ))}
-</div>
+        <div
+          ref={gridRef}
+          className="grid grid-cols-2 gap-2 justify-items-center mx-auto w-full sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 px-2"
+        >
+          {areas.map((area, index) => (
+            <div
+              key={area}
+              className="opacity-0 translate-x-[0px] area-item"
+              style={{ animationDelay: `${index * 0.1}s` }}
+            >
+              <span className="px-3 py-2 rounded-full bg-green-100 text-green-800 font-medium shadow hover:shadow-lg transition text-center block">
+                {area}
+              </span>
+            </div>
+          ))}
+        </div>
       </section>
     </>
   );

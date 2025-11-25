@@ -26,7 +26,7 @@ const NavBar =  () => {
         )}
         <div
           className={`
-            fixed top-0 left-0 h-full w-2/3 max-w-[250px] bg-green-800 text-white 
+            fixed top-0 left-0 h-full w-2/3 max-w-[250px] bg-green-500 text-white 
             transform transition-transform duration-300 z-50
             ${menuOpen ? "translate-x-0" : "-translate-x-full"}
           `}
@@ -51,7 +51,6 @@ const NavBar =  () => {
           </ul>
         </div>
       </nav>
-
       {/* Spacer to prevent content from hiding under fixed navbar */}
       <div className="h-16"></div>
     </>
