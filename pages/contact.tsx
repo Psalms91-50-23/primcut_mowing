@@ -45,7 +45,7 @@ const Contact: React.FC<Props> = () => {
           <span className="font-semibold">Phone:</span> 021 123 4567
         </p>
         <p className="text-lg">
-          <span className="font-semibold">Email:</span> contact@primcutmowing.co.nz
+          <span className="font-semibold">Email:</span> contact@primcut.co.nz
         </p>
         <p className="text-lg">
           <span className="font-semibold">Address:</span> PO Box 12345, Lower Hutt, NZ
