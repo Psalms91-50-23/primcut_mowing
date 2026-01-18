@@ -9,8 +9,7 @@ const NavBar =  () => {
     const [menuOpen, setMenuOpen] = useState(false);
     return (
     <>
-    
-      <nav className="fixed top-0 w-full flex justify-between items-center p-6 bg-green-900 text-white z-50 shadow-md max-w-[1280px] mx-auto px-4">
+      <nav className="fixed top-0 w-full flex justify-between items-center p-6 bg-green-900 text-white z-50 shadow-md max-w-[1600px] mx-auto px-4">
         <h1 className="font-bold text-xl">PrimCut</h1>
         {!isMobile && (
           <ul className="flex flex-row space-x-6 text-base md:space-x-10">
