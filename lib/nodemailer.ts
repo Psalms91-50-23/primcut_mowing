@@ -27,7 +27,7 @@ export const sendEmail = async (name: string, phone: string,  email: string, mes
             padding: 20px;
             text-align: center;
           ">   
-            <h1><strong>PrimCut Mowing ltd</strong></h1>
+            <h1><strong>PrimCut ltd</strong></h1>
           </div>
             <h3>New Message from Website Contact Form</h3>
             <p><strong>Name:</strong> ${name}</p>

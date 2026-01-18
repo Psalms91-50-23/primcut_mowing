@@ -4,10 +4,10 @@ import type { AppProps } from 'next/app'
 import NavBar from '../components/NavBar'
 
 function PrimCut({ Component, pageProps }: AppProps) {
-  return <>
-    <NavBar/>
-    <Component {...pageProps} />  
-  </>
+   return <div className='w-full max-w-[1600px]'>
+      <NavBar/>
+      <Component {...pageProps} />  
+  </div>
   
 }
 

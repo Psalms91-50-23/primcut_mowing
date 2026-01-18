@@ -1,45 +1,11 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 
 type Props = {};
 
 const Home: React.FC<Props> = () => {
+  // const [visible, setVisible] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return;
-
-    const items = grid.querySelectorAll(".area-item");
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const isVisible = entry.intersectionRatio > 0.3;
-
-          if (isVisible) {
-            items.forEach((item, index) => {
-              const el = item as HTMLElement;
-              el.style.animationDelay = `${index * 0.1}s`;
-              el.classList.add("animate-slide-in");
-            });
-          } else {
-
-            items.forEach((item) => {
-              const el = item as HTMLElement;
-              el.classList.remove("animate-slide-in");
-            });
-          }
-        });
-      },
-      { threshold: 0.3 }
-    );
-
-    observer.observe(grid);
-
-    return () => observer.disconnect();
-  }, []);
-
   const areas = [
     "Petone",
     "Waiwhetu",
@@ -54,6 +20,43 @@ const Home: React.FC<Props> = () => {
     "Silverstream",
     "Upper Hutt",
   ];
+
+    const [visibleItems, setVisibleItems] = useState<boolean[]>(
+    new Array(areas.length).fill(false)
+  );
+
+  useEffect(() => {
+    if (!gridRef.current) return;
+
+    const items = Array.from(gridRef.current.querySelectorAll(".area-item"));
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const isVisible = entry.intersectionRatio > 0.3;
+
+          if (isVisible) {
+            items.forEach((_, i) => {
+              setTimeout(() => {
+                setVisibleItems((prev) => {
+                  const updated = [...prev];
+                  updated[i] = true;
+                  return updated;
+                });
+              }, i * 50);
+            });
+          } else {
+            setVisibleItems(new Array(areas.length).fill(false));
+          }
+        });
+      },
+      { threshold: 0.3 }
+    );
+
+    observer.observe(gridRef.current);
+
+    return () => observer.disconnect();
+  }, [areas]);
 
   return (
     <>
@@ -80,6 +83,7 @@ const Home: React.FC<Props> = () => {
           </Link>
         </div>
       </header>
+
       <section className="py-16 px-6 md:px-16 bg-white text-black">
         <h3 className="text-3xl md:text-4xl font-bold mb-10 text-center">
           Our Services
@@ -87,7 +91,11 @@ const Home: React.FC<Props> = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
           <div className="p-6 border rounded shadow hover:shadow-lg transition">
             <h4 className="font-semibold mb-2 text-xl">Property Maintenance</h4>
-            <p>Licensed Building Practitioners with decades of experience, specialising in end-of-lease maintenance to prepare rental properties for the next tenant.</p>
+            <p>
+              Licensed Building Practitioners with decades of experience,
+              specialising in end-of-lease maintenance to prepare rental
+              properties for the next tenant.
+            </p>
           </div>
           <div className="p-6 border rounded shadow hover:shadow-lg transition">
             <h4 className="font-semibold mb-2 text-xl">Lawn Mowing</h4>
@@ -105,39 +113,41 @@ const Home: React.FC<Props> = () => {
             <h4 className="font-semibold mb-2 text-xl">Rubbish Collecting</h4>
             <p>We remove garden debris, old furniture, and unwanted items responsibly.</p>
           </div>
-          
         </div>
       </section>
+
       <section className="py-16 px-6 md:px-16 bg-green-50 text-black text-center">
         <h3 className="text-3xl md:text-4xl font-bold mb-4">Why Choose Us?</h3>
         <p className="text-lg md:text-xl">
           Experienced, reliable, and committed to keeping your yard looking its best.
         </p>
       </section>
+
       <section className="flex flex-col py-16 px-6 md:px-16 bg-white text-black text-center">
-        <div className="mb-10">
-          <h3 className="text-3xl md:text-4xl font-bold mb-6">Areas We Cover</h3>
-          <p className="text-lg md:text-xl">
-            We proudly serve suburbs across Hutt Valley, including:
-          </p>
-        </div>
-        <div
-          ref={gridRef}
-          className="grid grid-cols-2 gap-2 justify-items-center mx-auto w-full sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 px-2"
-        >
-          {areas.map((area, index) => (
-            <div
-              key={area}
-              className="opacity-0 translate-x-[0px] area-item"
-              style={{ animationDelay: `${index * 0.1}s` }}
-            >
-              <span className="px-3 py-2 rounded-full bg-green-100 text-green-800 font-medium shadow hover:shadow-lg transition text-center block">
-                {area}
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
+      <div className="mb-10">
+        <h3 className="text-3xl md:text-4xl font-bold mb-6">Areas We Cover</h3>
+        <p className="text-lg md:text-xl">
+          We proudly serve suburbs across Hutt Valley, including:
+        </p>
+      </div>
+      <div
+        ref={gridRef}
+        className="grid grid-cols-2 gap-2 justify-items-center mx-auto w-full sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 px-2"
+      >
+        {areas.map((area, index) => (
+          <div
+            key={area}
+            className={`area-item opacity-0 transform transition-all duration-700 ${
+              visibleItems[index] ? "opacity-100 translate-y-0" : "translate-y-5"
+            }`}
+          >
+            <span className="px-3 py-2 rounded-full bg-green-100 text-green-800 font-medium shadow hover:shadow-lg transition text-center block">
+              {area}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
     </>
   );
 };
