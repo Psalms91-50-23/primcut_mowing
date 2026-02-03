@@ -57,12 +57,14 @@ export const formatFullName = (
 };
 
 export async function loginUser(payload: LoginPayload) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/auth/login`, {
+  const res = await fetch(`/api/users/auth/login`, 
+  // const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/auth/login`, 
+    {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    credentials: "include", // <-- IMPORTANT
+    credentials: "include", 
     body: JSON.stringify(payload),
   });
 

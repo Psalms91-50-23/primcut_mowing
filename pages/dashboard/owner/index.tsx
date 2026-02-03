@@ -55,9 +55,9 @@ export default function OwnerDashboard() {
     setLoading(false);
 
     // Fetch pending quotes
-    fetchPendingQuotes();
+    // fetchPendingQuotes();
     // Fetch employee details for owner
-    fetchEmployeeDetails();
+    // fetchEmployeeDetails();
   }, [user]);
 
   const fetchPendingQuotes = async () => {
