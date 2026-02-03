@@ -166,7 +166,7 @@ export default function AuthPage(props: Props) {
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoggingIn(true);
-     setLoginError(null); // reset previous error
+    setLoginError(null); // reset previous error
 
     try {
       // ⚡ Generate fresh v3 token immediately before sending
