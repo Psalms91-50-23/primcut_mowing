@@ -150,9 +150,11 @@ input:focus, textarea:focus {
   display: inline-block; 
   transition: transform 0.3s ease-in-out;
 }
+
 .enlarge:hover {
   transform: scale(1.2); 
 }
+
 @media (max-width: 410px) {
   .title {
     font-size: 1rem;
