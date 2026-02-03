@@ -152,3 +152,4 @@ const Home: React.FC<Props> = () => {
   );
 };
 
+export default Home;
