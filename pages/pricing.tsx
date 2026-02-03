@@ -5,9 +5,6 @@ type Props = {}
 export default function PricingPage(props: Props) {
   return (
     <div>
-        {/* <div className="">
-            <NavBar/>
-        </div> */}
         <div className="">
             <h1>
                 Pricing
