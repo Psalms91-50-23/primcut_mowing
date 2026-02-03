@@ -1,11 +1,11 @@
 import React, { useEffect, useRef } from "react";
 import Link from "next/link";
-
+import { useAuth } from "../context/AuthContext"; // import your auth context
 type Props = {};
 
-const Home: React.FC<Props> = () => {
+export default function HomePage (props: Props){
   const gridRef = useRef<HTMLDivElement>(null);
-
+  const { loading } = useAuth(); // get loading state from context
   useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
@@ -54,6 +54,14 @@ const Home: React.FC<Props> = () => {
     "Silverstream",
     "Upper Hutt",
   ];
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -142,4 +150,3 @@ const Home: React.FC<Props> = () => {
   );
 };
 
-export default Home;

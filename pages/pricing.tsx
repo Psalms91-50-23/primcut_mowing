@@ -2,7 +2,7 @@ import React from 'react'
 import NavBar from '../components/NavBar';
 type Props = {}
 
-const pricing = (props: Props) => {
+export default function PricingPage(props: Props) {
   return (
     <div>
         {/* <div className="">
@@ -17,4 +17,3 @@ const pricing = (props: Props) => {
   )
 }
 
-export default pricing

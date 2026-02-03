@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2017",
+    "types": ["node"],
     "lib": ["dom", "dom.iterable", "esnext"],
+    "typeRoots": ["./types", "./node_modules/@types"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -28,7 +30,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
-  ],
+    "**/*.mts",
+    "types/**/*.d.ts"
+, "hooks/useMediaQuery.tsx"  ],
   "exclude": ["node_modules"]
 }

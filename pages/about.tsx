@@ -1,8 +1,18 @@
 import React from "react";
-
+import { useAuth } from "../context/AuthContext"; // import your auth context
 type Props = {}
 
-const About = (props: Props) => {
+export default function AboutPage (props: Props){
+  const { loading } = useAuth(); // get loading state from context
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+  
   return (
     <div className="py-16 px-6 md:px-16 bg-white text-black">
        <div className="relative w-full mb-8">
@@ -26,4 +36,4 @@ const About = (props: Props) => {
   )
 }
 
-export default About;
+
