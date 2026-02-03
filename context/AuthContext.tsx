@@ -64,10 +64,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchUser = async () => {
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/auth/me`,
+        `/api/users/auth/me`,
         {
           method: "GET",
-          credentials: "include", // 🔑 send cookies automatically
+          credentials: "include", 
         }
       );
 
@@ -137,7 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const initAuth = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/auth/check`, { credentials: "include" });
+      const res = await fetch(`/api/users/auth/check`, { credentials: "include" });
 
       const data = await res.json();
       console.log({data},"auth context")
