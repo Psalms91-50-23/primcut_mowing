@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLoadScript, type Libraries } from "@react-google-maps/api";
 import { toast } from "react-hot-toast";
-import { useAuth } from "../context/AuthContext"; // import your auth context
+import { useAuth } from "../context/AuthContext"; 
+
 type Props = {};
 
 type ImageInput = {
