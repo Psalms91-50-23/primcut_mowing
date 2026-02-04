@@ -136,7 +136,7 @@ export default function OwnerDashboard() {
     <div className="min-h-screen bg-gray-50 p-6 mt-20">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-green-900">Owner Dashboard</h1>
-        <p className="text-gray-600">Welcome back {fullName} 👋</p>
+        <p className="text-gray-600">Welcome back {fullName} <span className="wave text-3xl">👋</span></p>
       </header>
 
       {/* Stats */}

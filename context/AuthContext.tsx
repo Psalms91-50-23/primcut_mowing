@@ -22,7 +22,7 @@ export interface SupabaseUser {
 }
 
 export interface UserType  {
-  id?: string | number;
+  // id?: string | number;
   uuid?: string;
   email: string;
   first_name?: string;
@@ -38,7 +38,8 @@ type AuthContextType = {
   loading: boolean;
   logout: () => Promise<void>;
   hasRole: (roles: string | string[]) => boolean;
-  fetchUser: () => Promise<UserType | undefined>; // update return type
+  fetchUser: () => Promise<UserType | undefined>; 
+  login: (email: string, password: string, recaptchaToken: string) => Promise<UserType | undefined>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -101,6 +102,63 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const login = async (
+    email: string,
+    password: string,
+    recaptchaToken: string
+  ) => {
+    const res = await fetch("/api/users/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password, recaptchaToken }),
+    });
+
+    let data: any = null;
+    try {
+      data = await res.json();
+    } catch {
+      // backend returned no JSON
+    }
+
+    if (!res.ok) {
+      throw new Error(
+        data?.error ||
+        data?.message ||
+        "Login failed"
+      );
+    }
+
+    // 🔐 Never trust login response user — always fetch
+    const user = await fetchUser();
+    if (!user) {
+      throw new Error("Login succeeded but user could not be fetched");
+    }
+
+    setUser(user);
+    return user;
+  };
+
+
+  // const login = async (email: string, password: string, recaptchaToken: string) => {
+  //   const res = await fetch("/api/users/auth/login", {
+  //     method: "POST",
+  //     headers: { "Content-Type": "application/json" },
+  //     credentials: "include",
+  //     body: JSON.stringify({ email, password, recaptchaToken }),
+  //   });
+
+  //   const data = await res.json();
+  //   if (!res.ok) throw new Error(data.message || "Login failed");
+
+  //   // fetch user and update state
+  //   const user = await fetchUser(); // your existing fetchUser logic
+  //   if (!user) throw new Error("Could not fetch user after login");
+
+  //   setUser(user); // update context state
+  //   return user;
+  // };
+
   /**
    * Logout user:
    * Backend clears cookies.
@@ -133,22 +191,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * On mount, fetch backend auth state
    */
 
-  useEffect(() => {
-  const initAuth = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/users/auth/check`, { credentials: "include" });
-      const data = await res.json();
-      if (data.loggedIn) await fetchUser();
-    } catch (err) {
-      console.log("Not logged in", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    useEffect(() => {
+      const initAuth = async () => {
+        setLoading(true);
+        try {
+          const res = await fetch(`/api/users/auth/check`, { credentials: "include" });
+          const data = await res.json();
+          if (data.loggedIn) await fetchUser();
+        } catch (err) {
+          console.log("Not logged in", err);
+        } finally {
+          setLoading(false);
+        }
+      };
 
-  initAuth();
-}, []);
+      initAuth();
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -159,6 +217,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         logout,
         hasRole,
         fetchUser,
+        login 
       }}
     >
       {children}
