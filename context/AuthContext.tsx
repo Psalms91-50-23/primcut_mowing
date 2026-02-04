@@ -108,7 +108,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    */
   const logout = async () => {
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/auth/logout`, {
+      await fetch(`/api/users/auth/logout`, {
         method: "POST",
         credentials: "include",
       });
@@ -138,9 +138,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/users/auth/check`, { credentials: "include" });
-
       const data = await res.json();
-      console.log({data},"auth context")
       if (data.loggedIn) await fetchUser();
     } catch (err) {
       console.log("Not logged in", err);

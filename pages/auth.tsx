@@ -175,25 +175,45 @@ export default function AuthPage(props: Props) {
       console.log("v3 token:", token);
 
       // Send token with login request
-      const { data, error } = await loginUser({
-        email,
-        password: loginPassword,
-        recaptchaToken: token,
+      // const { data, error } = await loginUser({
+      //   email,
+      //   password: loginPassword,
+      //   recaptchaToken: token,
+      // });
+      const res = await fetch(`/api/users/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", 
+        body: JSON.stringify({
+          email,
+          password: loginPassword,
+          recaptchaToken: token,
+        }),
       });
 
+      const data = await res.json();
+      const error = !res.ok ? data.message : null;
+
+      console.log({data}, " login response data")
+
       if (error) {
+        console.log("error in handle login")
         setLoginError("Email or password is incorrect");
         toast.error("Email or password is incorrect");
         return;
       }
-
-      toast.success("Logged in successfully!");
+      console.log({data}, " data in handle login")
       const loggedInUser: UserType | undefined  = await fetchUser();
       if (!loggedInUser) {
-      // handle failure: show error, return, or redirect
-      toast.error("Could not fetch user data.");
-      return;
-    }
+        console.log("user not logged in")
+        console.log({loggedInUser})
+        // handle failure: show error, return, or redirect
+        toast.error("Could not fetch user data.");
+        return;
+      }
+      toast.success("Logged in successfully!");
       const redirectUrl =
       roleRedirectMap[loggedInUser?.role || "customer"] || "/auth";
     router.push(redirectUrl);
