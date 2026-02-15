@@ -60,7 +60,7 @@ const Home: React.FC<Props> = () => {
 
   return (
     <>
-      <header className="relative w-full h-[450px] overflow-hidden group py-3 mt-10 ">
+      <header className="relative w-full h-[450px] overflow-hidden group py-3 ">
         <div
           className="absolute inset-0 bg-cover bg-center opacity-80 transition-opacity duration-300 
                group-hover:opacity-100 sm:opacity-60 sm:group-hover:opacity-90 

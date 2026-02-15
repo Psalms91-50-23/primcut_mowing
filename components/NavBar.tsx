@@ -15,6 +15,7 @@ const NavBar = () => {
 
   const dropdownRef = useRef<HTMLLIElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement | null>(null);
 
   const handleLogout = async () => {
     console.log("Logging out...");
@@ -47,9 +48,28 @@ const NavBar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!navRef.current) return;
+
+    const setNavHeight = () => {
+      const height = navRef.current!.offsetHeight;
+      document.documentElement.style.setProperty(
+        "--nav-height",
+        `${height}px`
+      );
+    };
+
+    setNavHeight();
+    window.addEventListener("resize", setNavHeight);
+
+    return () => window.removeEventListener("resize", setNavHeight);
+  }, []);
+
   return (
-    <nav className="fixed top-0 flex w-full justify-between items-center p-6 bg-green-900 text-white z-50 shadow-md max-w-[1600px]">
-      <h1 className="flex font-bold text-xl m-0 p-0 items-center"><span className="text-3xl m-0 p-0 translate-x-2">H</span><span className="font-bold text-3xl m-0 p-0 "><img src="/images/seedream-image.png" alt="Happy Logo" className="w-16 h-16 inline-block ml-1" /></span><span className="font-bold text-3xl m-0 p-0">ppy Lawns</span></h1>
+    <nav className="fixed top-0 flex w-full justify-between items-center p-6 bg-green-900 text-white z-50 shadow-md max-w-[1600px]"
+    ref={navRef}
+    >
+      <h1 className="flex font-bold text-xl m-0 p-0 items-center"><span className="text-3xl m-0 p-0 translate-x-2">H</span><span className="font-bold text-3xl m-0 p-0 "><img src="/images/seedream-image.png" alt="Happy Logo" className="blockw-16 h-16 ml-1" /></span><span className="font-bold text-3xl m-0 p-0">ppy Lawns</span></h1>
 
       {/* Desktop Menu */}
       {!isMobile && (
@@ -117,7 +137,7 @@ const NavBar = () => {
       {/* Mobile Slide Menu */}
       <div
         ref={mobileMenuRef}
-        className={`fixed top-0 left-0 h-full w-full max-w-[320px] bg-green-900 text-white transform transition-transform duration-300 z-50 ${
+        className={`fixed top-0 left-0 h-full w-full max-w-[340px] bg-green-900 text-white transform transition-transform duration-300 z-50 ${
           menuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

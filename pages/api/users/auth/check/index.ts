@@ -3,8 +3,6 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const { accessToken, refreshToken } = req.cookies;
-  console.log({accessToken})
-  console.log({refreshToken})
   if (!accessToken || !refreshToken) {
     return res.status(401).json({ loggedIn: false });
   }

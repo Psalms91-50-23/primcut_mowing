@@ -1,14 +1,14 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
-import { calculateGST,calculateSubtotal, calculateTotal } from "@/utils/utils";
+import { calculateGST,calculateSubtotal, calculateTotal, sanitizeDecimalInput, sanitizeIntegerInput } from "@/utils/utils";
 import { useAuth } from "@/context/AuthContext";
 
 type Service = {
   value: string;
   label: string;
-  unit_price: number;
-  quantity: number;
+  unit_price: string | number;
+  quantity: string | number;
 };
 
 type Image = {
@@ -50,12 +50,15 @@ export default function QuoteAdminPage() {
   // ✅ Protect Route
   useEffect(() => {
     if (loading) return; // wait for auth to finish
-
-    // If no user OR user role is not allowed
+    if (!user) {
+    // Not logged in → redirect to login with redirect param
+    router.replace(`/auth?redirect=${encodeURIComponent(router.asPath)}`);
+    return;
+  }
     if (!user || !["admin", "owner", "employee"].includes(role)) {
-      router.replace("/auth"); // redirect to login
+      router.replace("/auth"); 
     }
-  }, [loading, user, role]);
+  }, [loading, user, role, router ]);
 
   useEffect(() => {
     if (!quote_uuid) return;
@@ -63,10 +66,13 @@ export default function QuoteAdminPage() {
     const fetchQuote = async () => {
       setQuoteLoading(true);
 
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotes/uuid/${quote_uuid}`
-      );
+      const res = await fetch(`/api/quotes/uuid/${quote_uuid}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
       const data = await res.json();
+      console.log({data}, " quote admin get")
       const quoteData = data?.quote ?? data;
 
       const services: Service[] = (quoteData.services || []).map((s: any) => ({
@@ -76,7 +82,14 @@ export default function QuoteAdminPage() {
         quantity: s.quantity ?? 1,
       }));
 
-      const subtotal = calculateSubtotal(services);
+      const subtotal = calculateSubtotal(
+        services.map((s: any) => ({
+          ...s,
+          unit_price: Number(s.unit_price),
+          quantity: Number(s.quantity),
+        }))
+      );
+      // const subtotal = calculateSubtotal(services);
       const gst = calculateGST(subtotal);
       const total = calculateTotal(subtotal, gst);
 
@@ -97,7 +110,7 @@ export default function QuoteAdminPage() {
   const handleServiceChange = (
     index: number,
     field: "unit_price" | "quantity",
-    value: number
+    value: number | string
   ) => {
     if (!quote) return;
 
@@ -107,7 +120,14 @@ export default function QuoteAdminPage() {
       [field]: value,
     };
 
-    const subtotal = calculateSubtotal(newServices);
+    // const subtotal = calculateSubtotal(newServices);
+     const subtotal = calculateSubtotal(
+      newServices.map((s) => ({
+        ...s,
+        unit_price: Number(s.unit_price),
+        quantity: Number(s.quantity),
+      }))
+    );
     const gst = calculateGST(subtotal);
     const total = calculateTotal(subtotal, gst);
 
@@ -135,17 +155,18 @@ export default function QuoteAdminPage() {
     setIsFinalizing(true);
 
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotes/admin/uuid/${quote.uuid}`,
+      `/api/quotes/admin/uuid/${quote.uuid}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           services: quote.services,
           subtotal_amount: quote.subtotal_amount,
           gst_amount: quote.gst_amount,
           total_amount: quote.total_amount,
-          status: "pending",
-          is_quote_sent_to_client: true,  // NEW
+          status: "sent",
+          is_quote_sent_to_client: true,  
         }),
       }
     );
@@ -161,7 +182,12 @@ export default function QuoteAdminPage() {
     setIsFinalizing(false);
   };
 
-  if (loading || quoteLoading) return <div>Loading...</div>;
+  if (loading || quoteLoading)
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="w-16 h-16 border-4 border-green-700 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
   // Protect route in render (extra safety)
   if (!user || !["admin", "owner", "employee"].includes(role)) {
     return <div>Not authorized to view this page.</div>;
@@ -238,33 +264,31 @@ export default function QuoteAdminPage() {
           {quote.services.map((s, index) => (
             <div key={index} className="flex gap-4 mb-2">
               <div className="w-1/3">{s.label}</div>
-              <input
-                type="number"
-                min={0}
-                value={s.unit_price === 0 ? "" : s.unit_price}
-                onChange={(e) =>
-                  handleServiceChange(
-                    index,
-                    "unit_price",
-                    Number(e.target.value)
-                  )
-                }
-                className="border px-2 py-1 rounded w-1/3"
-              />
+                <input
+                  type="text"
+                  value={s.unit_price === 0 ? "" : s.unit_price}
+                  onChange={(e) =>
+                    handleServiceChange(index, "unit_price", e.target.value)
+                  }
+                  onBlur={(e) => {
+                    const sanitized = sanitizeDecimalInput(e.target.value);
+                    handleServiceChange(index, "unit_price", sanitized || "0");
+                  }}
+                  className="border px-2 py-1 rounded w-1/3"
+                />
 
-              <input
-                type="number"
-                min={0}
-                value={s.quantity}
-                onChange={(e) =>
-                  handleServiceChange(
-                    index,
-                    "quantity",
-                    Number(e.target.value)
-                  )
-                }
-                className="border px-2 py-1 rounded w-1/3"
-              />
+                <input
+                  type="text"
+                  value={s.quantity}
+                  onChange={(e) =>
+                    handleServiceChange(index, "quantity", e.target.value)
+                  }
+                  onBlur={(e) => {
+                    const sanitized = sanitizeIntegerInput(e.target.value);
+                    handleServiceChange(index, "quantity", sanitized.toString());
+                  }}
+                  className="border px-2 py-1 rounded w-1/3"
+                />
             </div>
           ))}
         </div>

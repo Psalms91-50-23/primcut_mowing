@@ -1,81 +1,134 @@
 import React, { useState, useEffect } from "react";
 import PasswordStrengthBar from "react-password-strength-bar";
-import { registerUser, loginUser, sendPasswordResetEmail } from "../utils/utils";
 import { toast } from "react-hot-toast";
-import { useAuth } from "../context/AuthContext";
+import { useAuth, roleRedirectMap } from "../context/AuthContext";
 import { useRouter } from "next/router";
+import { useRecaptcha } from "../hooks/useRecaptcha";
+import { registerUser, loginUser, sendPasswordResetEmail } from "../utils/utils";
 
-type Props = {};
-
-export default function AuthPage(props: Props) {
+export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
-
-  // Password visibility states
-  const [loginPasswordVisible, setLoginPasswordVisible] = useState(false);
-  const [registerPasswordVisible, setRegisterPasswordVisible] = useState(false);
-  const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
-
-  const { fetchUser } = useAuth();
+  const { loadV3, loadV2 } = useRecaptcha();
   const router = useRouter();
+  const { login } = useAuth();
 
-  // Form fields
+  // Form states
   const [email, setEmail] = useState("");
-  const [registerPassword, setRegisterPassword] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
 
-  // Loading states
-  const [isRegistering, setIsRegistering] = useState(false);
+  // Visibility & Loading states
+  const [loginPasswordVisible, setLoginPasswordVisible] = useState(false);
+  const [registerPasswordVisible, setRegisterPasswordVisible] = useState(false);
+  const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
-  useEffect(() => {
-    setMode("login"); // always start on login
-  }, []);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
-  // ----------------------------
+  // -----------------------------
   // reCAPTCHA helpers
-  // ----------------------------
+  // -----------------------------
   const getRecaptchaV3Token = async (action: string) => {
     if (!window.grecaptcha) {
       toast.error("reCAPTCHA not loaded");
       return null;
     }
-
-    try {
-      await new Promise<void>((resolve) => window.grecaptcha.ready(resolve));
-      return await window.grecaptcha.execute(
-        process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY!,
-        { action }
-      );
-    } catch (err) {
-      console.error("reCAPTCHA v3 execute error:", err);
-      toast.error("Failed to get reCAPTCHA token");
-      return null;
-    }
+    await new Promise<void>((resolve) => window.grecaptcha.ready(resolve));
+    return await window.grecaptcha.execute(
+      process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY!,
+      { action }
+    );
   };
 
   const handleV2Challenge = async (): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (!window.grecaptcha) return reject("reCAPTCHA v2 not loaded");
-
       const container = document.getElementById("recaptcha-v2-container");
       if (!container) return reject("v2 container not found");
 
       window.grecaptcha.ready(() => {
-        window.grecaptcha.render(container, {
+        const widgetId = window.grecaptcha.render(container, {
           sitekey: process.env.NEXT_PUBLIC_RECAPTCHA_V2_SITE_KEY!,
+          size: "invisible",
           callback: (token: string) => resolve(token),
-          "error-callback": () => reject("v2 error occurred"),
-          "expired-callback": () => reject("v2 token expired"),
         });
-
-        // Optional: reject if not solved within 2 minutes
         setTimeout(() => reject("v2 challenge timed out"), 120000);
       });
     });
+  };
+
+  // -----------------------------
+  // Header component
+  // -----------------------------
+  const Header = ({ mode }: { mode: "login" | "register" | "reset" }) => (
+  <>
+    <div className="w-full flex flex-col items-center mb-6 bg-green-800 py-3 rounded-t-2xl px-2">
+      <h1 className="flex items-center font-bold text-2xl sm:text-3xl text-white">
+        <span className="text-3xl sm:text-4xl translate-x-1">H</span>
+        <span className="ml-1">
+          <img
+            src="/images/seedream-image.png"
+            alt="Happy Logo"
+            className="w-10 h-10 sm:w-12 sm:h-12 inline-block"
+          />
+        </span>
+        <span className="text-3xl sm:text-4xl ml-1">ppy Lawns</span>
+      </h1>
+    </div>
+
+    <div className="py-3 px-2">
+      <h1 className="text-xl sm:text-2xl font-bold text-center text-green-900 mb-2">
+        {mode === "register"
+          ? "Create Account"
+          : mode === "reset"
+          ? "Reset Password"
+          : "Welcome Back"}
+      </h1>
+      <p className="text-center text-gray-600 mt-2 text-xs sm:text-sm">
+        {mode === "register"
+          ? "Sign up to manage your Happy Lawns account"
+          : mode === "reset"
+          ? "Enter your email to reset your password"
+          : "Login to your Happy Lawns account"}
+      </p>
+    </div>
+  </>
+);
+
+  // -----------------------------
+  // Handlers
+  // -----------------------------
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError(null);
+
+    try {
+      await loadV3();
+      const token = await getRecaptchaV3Token("login");
+      const loggedInUser = await login(email, loginPassword, token);
+      if (!loggedInUser) {
+        toast.error("Could not fetch user data.");
+        return;
+      }
+
+      toast.success("Logged in successfully!");
+      const redirectUrl =
+        typeof router.query.redirect === "string" && router.query.redirect.length > 0
+          ? router.query.redirect
+          : roleRedirectMap[loggedInUser.role] || "/";
+
+      router.replace(redirectUrl);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -87,19 +140,8 @@ export default function AuthPage(props: Props) {
     setIsRegistering(true);
 
     try {
-      let token = await getRecaptchaV3Token("register");
-
-      // Verify v3 token with backend
-      const v3Res = await fetch("/api/verify-recaptcha-v3", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, action: "register" }),
-      }).then((r) => r.json());
-
-      if (!v3Res.success) {
-        toast("Suspicious activity detected. Please verify with reCAPTCHA.");
-        token = await handleV2Challenge(); // fallback
-      }
+      await loadV3();
+      const token = await getRecaptchaV3Token("register");
 
       const payload = {
         firstName,
@@ -113,7 +155,6 @@ export default function AuthPage(props: Props) {
 
       await registerUser(payload);
       toast.success("User created. Verification email sent.");
-
       setFirstName("");
       setLastName("");
       setEmail("");
@@ -127,55 +168,16 @@ export default function AuthPage(props: Props) {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoggingIn(true);
-
-    try {
-      let token = await getRecaptchaV3Token("login");
-
-      const v3Res = await fetch("/api/verify-recaptcha-v3", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, action: "login" }),
-      }).then((r) => r.json());
-
-      if (!v3Res.success) {
-        toast("Suspicious activity detected. Please verify with reCAPTCHA.");
-        token = await handleV2Challenge();
-      }
-
-      await loginUser({ email, password: loginPassword, recaptchaToken: token });
-      toast.success("Logged in successfully!");
-      await fetchUser();
-      router.push("/dashboard");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
   const handleReset = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsResetting(true);
-    console.log("Resetting")
+
     try {
-      let token = await getRecaptchaV3Token("reset");
-      console.log({token})
-      const v3Res = await fetch("/api/verify-recaptcha-v3", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, action: "reset" }),
-      }).then((r) => r.json());
-
-      if (!v3Res.success) {
-        toast("Suspicious activity detected. Please verify with reCAPTCHA.");
-        token = await handleV2Challenge();
-      }
-
-      // await sendPasswordResetEmail({ email, recaptchaToken: token });
+      await loadV3();
+      const token = await getRecaptchaV3Token("reset");
+      await sendPasswordResetEmail({ email, recaptchaToken: token, recaptchaVersion: "v3" });
       toast.success("Password reset email sent (if account exists).");
+      setEmail("");
       setMode("login");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Reset failed");
@@ -184,26 +186,25 @@ export default function AuthPage(props: Props) {
     }
   };
 
+  // -----------------------------
+  // JSX
+  // -----------------------------
   return (
-    <div className="phone-horizontal max-w-[1600px] mx-auto w-screen min-h-screen flex items-center justify-center bg-gray-100 px-6">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold text-center text-green-900 mb-2">
-          {mode === "register"
-            ? "Create Account"
-            : mode === "reset"
-            ? "Reset Password"
-            : "Welcome Back"}
-        </h1>
+    
+  <div className="relative min-h-screen w-full flex items-center justify-center px-6 py-16">
+    {/* Background Image */}
+    <div
+      className="absolute inset-0 bg-cover bg-center z-0"
+      style={{ backgroundImage: "url('/images/login.png')" }}
+    />
+    {/* Overlay */}
+    <div className="absolute inset-0 bg-black/60 z-0"></div>
 
-        <p className="text-center text-sm text-gray-600 mb-6">
-          {mode === "register"
-            ? "Sign up to manage your PrimCut services"
-            : mode === "reset"
-            ? "Enter your email to receive a password reset link"
-            : "Login to your PrimCut account"}
-        </p>
-
-        {/* SLIDER */}
+    {/* Content Wrapper */}
+    <div className="relative z-10 w-full max-w-md bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl">
+      {/* Header */}
+    <Header mode={mode} /> 
+    <div className="relative z-10 w-full max-w-md bg-white/95 backdrop-blur-sm rounded-b-lg shadow-xl p-6">
         <div className="overflow-hidden">
           <div
             className={`flex w-[300%] transition-transform duration-500 ${
@@ -216,12 +217,12 @@ export default function AuthPage(props: Props) {
           >
             {/* LOGIN PANEL */}
             <div
-              className={`w-1/3 p-0 transition-all duration-500 ease-in-out ${
+              className={`w-1/3 transition-all duration-500 ${
                 mode === "login" ? "opacity-100 visible" : "opacity-0 invisible"
               }`}
             >
               <form className="space-y-4" autoComplete="off" onSubmit={handleLogin}>
-                <div className="px-1">
+                <div>
                   <label className="block text-sm font-medium mb-1">Email</label>
                   <input
                     type="email"
@@ -231,8 +232,7 @@ export default function AuthPage(props: Props) {
                     required
                   />
                 </div>
-
-                <div className="relative px-1">
+                <div className="relative">
                   <label className="block text-sm font-medium mb-1">Password</label>
                   <input
                     type={loginPasswordVisible ? "text" : "password"}
@@ -243,7 +243,7 @@ export default function AuthPage(props: Props) {
                   />
                   <button
                     type="button"
-                    className="absolute right-2 top-9 text-gray-500 text-xl"
+                    className="absolute right-2 top-8 text-gray-500 text-xl"
                     onClick={() => setLoginPasswordVisible(!loginPasswordVisible)}
                   >
                     {loginPasswordVisible ? "🙈" : "👁️"}
@@ -253,8 +253,10 @@ export default function AuthPage(props: Props) {
                 <button
                   type="submit"
                   disabled={isLoggingIn}
-                  className={`w-full mt-5 py-2 rounded-md font-bold transition hover:cursor-pointer ${
-                    isLoggingIn ? "bg-gray-400 text-white" : "bg-green-900 text-white hover:bg-green-800"
+                  className={`w-full mt-5 py-2 rounded-md font-bold transition ${
+                    isLoggingIn
+                      ? "bg-gray-400 text-white"
+                      : "bg-green-900 text-white hover:bg-green-800"
                   }`}
                 >
                   {isLoggingIn ? "Logging in..." : "Login"}
@@ -264,7 +266,7 @@ export default function AuthPage(props: Props) {
                   <button
                     type="button"
                     onClick={() => setMode("reset")}
-                    className="text-green-800 font-semibold hover:underline hover:cursor-pointer"
+                    className="text-green-800 font-semibold hover:underline"
                   >
                     Forgot password?
                   </button>
@@ -274,13 +276,13 @@ export default function AuthPage(props: Props) {
 
             {/* REGISTER PANEL */}
             <div
-              className={`w-1/3 p-0 transition-all duration-500 ease-in-out ${
+              className={`w-1/3 transition-all duration-500 ${
                 mode === "register" ? "opacity-100 visible" : "opacity-0 invisible"
               }`}
             >
               <form className="space-y-4" autoComplete="off" onSubmit={handleRegister}>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="px-1">
+                  <div>
                     <label className="block text-sm font-medium mb-1">First Name</label>
                     <input
                       type="text"
@@ -290,7 +292,7 @@ export default function AuthPage(props: Props) {
                       required
                     />
                   </div>
-                  <div className="px-1">
+                  <div>
                     <label className="block text-sm font-medium mb-1">Last Name</label>
                     <input
                       type="text"
@@ -302,7 +304,7 @@ export default function AuthPage(props: Props) {
                   </div>
                 </div>
 
-                <div className="px-1">
+                <div>
                   <label className="block text-sm font-medium mb-1">Email</label>
                   <input
                     type="email"
@@ -313,7 +315,7 @@ export default function AuthPage(props: Props) {
                   />
                 </div>
 
-                <div className="relative px-1">
+                <div className="relative">
                   <label className="block text-sm font-medium mb-1">Password</label>
                   <input
                     type={registerPasswordVisible ? "text" : "password"}
@@ -324,16 +326,20 @@ export default function AuthPage(props: Props) {
                   />
                   <button
                     type="button"
-                    className="absolute right-2 top-9 text-gray-500 text-xl"
-                    onClick={() => setRegisterPasswordVisible(!registerPasswordVisible)}
+                    className="absolute right-2 top-8 text-gray-500 text-xl"
+                    onClick={() =>
+                      setRegisterPasswordVisible(!registerPasswordVisible)
+                    }
                   >
                     {registerPasswordVisible ? "🙈" : "👁️"}
                   </button>
                   <PasswordStrengthBar password={registerPassword} />
                 </div>
 
-                <div className="relative px-1">
-                  <label className="block text-sm font-medium mb-1">Confirm Password</label>
+                <div className="relative">
+                  <label className="block text-sm font-medium mb-1">
+                    Confirm Password
+                  </label>
                   <input
                     type={confirmPasswordVisible ? "text" : "password"}
                     value={confirmPassword}
@@ -343,21 +349,24 @@ export default function AuthPage(props: Props) {
                   />
                   <button
                     type="button"
-                    className="absolute right-2 top-9 text-gray-500 text-xl"
-                    onClick={() => setConfirmPasswordVisible(!confirmPasswordVisible)}
+                    className="absolute right-2 top-8 text-gray-500 text-xl"
+                    onClick={() =>
+                      setConfirmPasswordVisible(!confirmPasswordVisible)
+                    }
                   >
                     {confirmPasswordVisible ? "🙈" : "👁️"}
                   </button>
                 </div>
 
-                {/* v2 container for fallback */}
                 <div id="recaptcha-v2-container" className="my-2"></div>
 
                 <button
                   type="submit"
                   disabled={isRegistering}
-                  className={`w-full mt-5 py-2 rounded-md font-bold transition hover:cursor-pointer ${
-                    isRegistering ? "bg-gray-400 text-white" : "bg-green-900 text-white hover:bg-green-800"
+                  className={`w-full mt-5 py-2 rounded-md font-bold transition ${
+                    isRegistering
+                      ? "bg-gray-400 text-white"
+                      : "bg-green-900 text-white hover:bg-green-800"
                   }`}
                 >
                   {isRegistering ? "Creating account..." : "Create Account"}
@@ -367,12 +376,12 @@ export default function AuthPage(props: Props) {
 
             {/* RESET PANEL */}
             <div
-              className={`w-1/3 p-0 transition-all duration-500 ease-in-out ${
+              className={`w-1/3 transition-all duration-500 ${
                 mode === "reset" ? "opacity-100 visible" : "opacity-0 invisible"
               }`}
             >
               <form className="space-y-4" autoComplete="off" onSubmit={handleReset}>
-                <div className="px-1">
+                <div>
                   <label className="block text-sm font-medium mb-1">Email</label>
                   <input
                     type="email"
@@ -383,15 +392,18 @@ export default function AuthPage(props: Props) {
                   />
                 </div>
 
-                <p className="text-xs text-gray-500 px-1">
-                  If an account exists with that email, a password reset link will be sent.
+                <p className="text-xs text-gray-500">
+                  If an account exists with that email, a password reset link will
+                  be sent.
                 </p>
 
                 <button
                   type="submit"
                   disabled={isResetting}
-                  className={`w-full mt-5 py-2 rounded-md font-bold transition hover:cursor-pointer ${
-                    isResetting ? "bg-gray-400 text-white" : "bg-green-900 text-white hover:bg-green-800"
+                  className={`w-full mt-5 py-2 rounded-md font-bold transition ${
+                    isResetting
+                      ? "bg-gray-400 text-white"
+                      : "bg-green-900 text-white hover:bg-green-800"
                   }`}
                 >
                   {isResetting ? "Sending..." : "Send Reset Link"}
@@ -411,7 +423,7 @@ export default function AuthPage(props: Props) {
           </div>
         </div>
 
-        {/* TOGGLE */}
+        {/* Toggle */}
         <div className="text-center mt-4 text-sm">
           {mode === "register" ? (
             <>
@@ -419,7 +431,7 @@ export default function AuthPage(props: Props) {
               <button
                 type="button"
                 onClick={() => setMode("login")}
-                className="text-green-800 font-semibold hover:underline hover:cursor-pointer"
+                className="text-green-800 font-semibold hover:underline"
               >
                 Login
               </button>
@@ -430,14 +442,17 @@ export default function AuthPage(props: Props) {
               <button
                 type="button"
                 onClick={() => setMode("register")}
-                className="text-green-800 font-semibold hover:underline hover:cursor-pointer"
+                className="text-green-800 font-semibold hover:underline"
               >
                 Sign up
               </button>
             </>
           )}
         </div>
-      </div>
     </div>
-  );
+    
+    </div>
+  </div>
+);
+
 }

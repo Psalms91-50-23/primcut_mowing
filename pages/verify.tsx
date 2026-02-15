@@ -22,7 +22,7 @@ export default function VerifyEmailPage() {
       return;
     }
 
-    fetch(`${backendUrl}/api/users/verify`, {
+    fetch(`/api/users/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),
@@ -51,7 +51,7 @@ export default function VerifyEmailPage() {
     }
 
     try {
-      const res = await fetch(`${backendUrl}/api/users/resend-verify-email`, {
+      const res = await fetch(`/api/users/resend-verify-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -71,7 +71,14 @@ export default function VerifyEmailPage() {
   };
 
   if (status === "loading") {
-    return <div>Verifying...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
+        {/* Spinner */}
+        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        {/* Text */}
+        <p className="text-gray-700 text-lg font-medium">Verifying your email...</p>
+      </div>
+    );
   }
 
   if (status === "error") {

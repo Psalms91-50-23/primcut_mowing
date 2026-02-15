@@ -7,13 +7,6 @@ import {
 } from "react";
 import { useRouter } from "next/router";
 
-// type UserType = {
-//   id: string | number;
-//   email: string;
-//   role: string;
-//   [key: string]: any; // any extra fields from backend
-// };
-
 export interface SupabaseUser {
   id: string;
   email: string;
@@ -61,7 +54,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * Fetch current user from backend.
    * Backend reads HttpOnly cookies and validates tokens.
    */
-
   const fetchUser = async () => {
     try {
       const res = await fetch(
@@ -138,27 +130,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(user);
     return user;
   };
-
-
-  // const login = async (email: string, password: string, recaptchaToken: string) => {
-  //   const res = await fetch("/api/users/auth/login", {
-  //     method: "POST",
-  //     headers: { "Content-Type": "application/json" },
-  //     credentials: "include",
-  //     body: JSON.stringify({ email, password, recaptchaToken }),
-  //   });
-
-  //   const data = await res.json();
-  //   if (!res.ok) throw new Error(data.message || "Login failed");
-
-  //   // fetch user and update state
-  //   const user = await fetchUser(); // your existing fetchUser logic
-  //   if (!user) throw new Error("Could not fetch user after login");
-
-  //   setUser(user); // update context state
-  //   return user;
-  // };
-
   /**
    * Logout user:
    * Backend clears cookies.

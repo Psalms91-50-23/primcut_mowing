@@ -6,7 +6,7 @@ type CustomerDashboardProps = {
     id: string;
     role: string;
     email: string;
-    // add any other fields your `user` object has
+
   };
 };
 

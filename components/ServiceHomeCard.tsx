@@ -1,4 +1,4 @@
-import React from 'react'
+
 
 const ServiceHomeCard = () => {
   return (
@@ -7,7 +7,7 @@ const ServiceHomeCard = () => {
       <h1></h1>
       <h5></h5>
     </div>
-  )
+  );
 }
 
 export default ServiceHomeCard

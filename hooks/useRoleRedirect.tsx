@@ -7,9 +7,9 @@ export const useRoleRedirect = (allowedRoles: string | string[]) => {
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return; // wait until auth state is loaded
+    if (loading) return; 
     if (!user) {
-      router.replace("/auth"); // not logged in
+      router.replace("/auth"); 
       return;
     }
 
@@ -17,7 +17,7 @@ export const useRoleRedirect = (allowedRoles: string | string[]) => {
 
     if (!rolesArray.includes(user.role)) {
       // redirect to their own dashboard
-      const redirectPath = roleRedirectMap[user.role] || "/customer";
+      const redirectPath = roleRedirectMap[user.role] || "/";
       router.replace(redirectPath);
     }
   }, [user, loading, router, allowedRoles]);

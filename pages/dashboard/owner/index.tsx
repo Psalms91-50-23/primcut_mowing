@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar, Users, FileText, DollarSign } from "lucide-react";
@@ -25,28 +25,34 @@ export default function OwnerDashboard() {
   const [fullName, setFullName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("employee");
-  const [employeeForm, setEmployeeForm] = useState<EmployeeFormType>({
-    jobTitle: "",
-    department: "",
-    bankAccount: "",
-    irdNumber: "",
-    taxCode: "",
-    emergencyFirstName: "",
-    emergencyLastName: "",
-    emergencyPhone: "",
-    hireDate: "",
-  });
 
-  const [pendingQuotes, setPendingQuotes] = useState<any[]>([]);
+  // Pagination & quotes state
+  const [draftQuotes, setDraftQuotes] = useState<any[]>([]);
+  const [sentQuotes, setSentQuotes] = useState<any[]>([]);
+  const [expiredQuotes, setExpiredQuotes] = useState<any[]>([]);
+  const [draftPage, setDraftPage] = useState(1);
+  const [sentPage, setSentPage] = useState(1);
+  const [draftTotalPages, setDraftTotalPages] = useState(1);
+  const [sentTotalPages, setSentTotalPages] = useState(1);
+  const [fetchingDrafts, setFetchingDrafts] = useState(false);
+  const [fetchingSent, setFetchingSent] = useState(false);
+  const [limit, setLimit] = useState<number>(0);
+  const [daysOld, setDaysOld] = useState<number>(0);
 
-  // ⚡ Only allow owner
   useRoleRedirect("owner");
 
+  // -----------------------
+  // Initial load
+  // -----------------------
   useEffect(() => {
-    if (!user) return;
+    setLoading(true);
+    if (!user) {
+      router.replace("/404");
+      return;
+    }
 
     if (user.role !== "owner") {
-      const redirectPath = roleRedirectMap[user.role] || "/customer";
+      const redirectPath = roleRedirectMap[user.role] || "/";
       router.replace(redirectPath);
       return;
     }
@@ -54,64 +60,71 @@ export default function OwnerDashboard() {
     setFullName(`${user.first_name} ${user.last_name}`);
     setLoading(false);
 
-    // Fetch pending quotes
-    // fetchPendingQuotes();
-    // Fetch employee details for owner
-    // fetchEmployeeDetails();
+    // Fetch quotes
+    fetchExpiredQuotes(3);
+    fetchDraftQuotes(1, 10);
+    fetchSentQuotes(1, 10);
+    setLoading(false);
   }, [user]);
 
-  const fetchPendingQuotes = async () => {
+  // -----------------------
+  // Fetch quotes functions
+  // -----------------------
+  const fetchDraftQuotes = async (pageNumber: number, quoteLimit?: number, lengthOfDays?: number) => {
+    if (fetchingDrafts || pageNumber > draftTotalPages) return;
+    setFetchingDrafts(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotes/pending`);
-      if (!res.ok) throw new Error("Failed to fetch quotes");
+      const res = await fetch(`/api/quotes?status=draft&limit=${quoteLimit}&page=${pageNumber}&olderThan=${lengthOfDays}`);
+      if (!res.ok) throw new Error("Failed to fetch draft quotes");
       const data = await res.json();
-      setPendingQuotes(data);
+
+      setDraftQuotes(prev => [...prev, ...data.quotes]);
+      setDraftPage(data.page);
+      setDraftTotalPages(data.totalPages);
     } catch (err) {
       console.error(err);
+    } finally {
+      setFetchingDrafts(false);
     }
   };
 
-  const fetchEmployeeDetails = async () => {
+  const fetchSentQuotes = async (pageNumber: number, quoteLimit?: number, lengthOfDays?: number) => {
+    if (fetchingSent || pageNumber > sentTotalPages) return;
+    setFetchingSent(true);
+
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/employees/${user?.uuid}`);
-      if (!res.ok) throw new Error("Failed to fetch employee details");
+      const res = await fetch(`/api/quotes?status=sent&limit=${quoteLimit}&page=${pageNumber}&olderThan=${lengthOfDays}`);
+      if (!res.ok) throw new Error("Failed to fetch sent quotes");
       const data = await res.json();
-      setEmployeeForm({
-        jobTitle: data.job_title || "",
-        department: data.department || "",
-        bankAccount: data.bank_account_number || "",
-        irdNumber: data.ird_number || "",
-        taxCode: data.tax_code || "",
-        emergencyFirstName: data.emergency_contact_first_name || "",
-        emergencyLastName: data.emergency_contact_last_name || "",
-        emergencyPhone: data.emergency_contact_phone || "",
-        hireDate: data.hire_date?.split("T")[0] || "",
-      });
+      console.log({data}, " sent quotes")
+
+      setSentQuotes(prev => [...prev, ...data.quotes]);
+      setSentPage(data.page);
+      setSentTotalPages(data.totalPages);
     } catch (err) {
       console.error(err);
+    } finally {
+      setFetchingSent(false);
     }
   };
 
-  const handleEmployeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setEmployeeForm(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleEmployeeSubmit = async () => {
+  const fetchExpiredQuotes = async (lengthOfDays: number = 7) => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/employees/${user?.uuid}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(employeeForm),
-      });
-      if (!res.ok) throw new Error("Failed to update employee");
-      alert("Employee details updated successfully");
-    } catch (err) {
-      console.error(err);
-      alert("Error updating employee");
+      const res = await fetch(`/api/quotes?status=expired&olderThan=${lengthOfDays}`);
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Failed to fetch expired quotes");
+       console.log({data}, " expired quotes")
+      setExpiredQuotes(data.quotes || []);
+    } catch (err: any) {
+      console.error("Error fetching expired quotes:", err.message || err);
+      setExpiredQuotes([]);
     }
   };
 
+  // -----------------------
+  // Invite user
+  // -----------------------
   const handleInviteUser = async () => {
     if (!inviteEmail) return alert("Enter an email");
     try {
@@ -130,13 +143,69 @@ export default function OwnerDashboard() {
     }
   };
 
-  if (loading) return <div>Loading...</div>;
+  const getQuoteURL = (quoteUUID: string) => `/dashboard/${user?.role}/quotes/${quoteUUID}`;
+
+  // -----------------------
+  // Infinite scroll handlers
+  // -----------------------
+  const draftContainerRef = useRef<HTMLDivElement>(null);
+  const sentContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = useCallback(() => {
+    if (draftContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = draftContainerRef.current;
+      if (scrollTop + clientHeight >= scrollHeight - 50 && draftPage < draftTotalPages) {
+        fetchDraftQuotes(draftPage + 1, limit);
+      }
+    }
+
+    if (sentContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = sentContainerRef.current;
+      if (scrollTop + clientHeight >= scrollHeight - 50 && sentPage < sentTotalPages) {
+        fetchSentQuotes(sentPage + 1, limit);
+      }
+    }
+  }, [draftPage, draftTotalPages, sentPage, sentTotalPages]);
+
+  useEffect(() => {
+    const draftDiv = draftContainerRef.current;
+    const sentDiv = sentContainerRef.current;
+
+    draftDiv?.addEventListener("scroll", handleScroll);
+    sentDiv?.addEventListener("scroll", handleScroll);
+
+    return () => {
+      draftDiv?.removeEventListener("scroll", handleScroll);
+      sentDiv?.removeEventListener("scroll", handleScroll);
+    };
+  }, [handleScroll]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center">
+          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-4 text-gray-600 text-lg">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 mt-20">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-green-900">Owner Dashboard</h1>
-        <p className="text-gray-600">Welcome back {fullName} <span className="wave text-3xl">👋</span></p>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <header className="mb-8 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-green-900">Owner Dashboard</h1>
+          <p className="text-gray-600">
+            Welcome back {fullName} <span className="wave text-3xl">👋</span>
+          </p>
+        </div>
+        <Button
+          onClick={() => router.push("/dashboard/owner/settings")}
+          className="bg-green-700 text-white hover:bg-green-800"
+        >
+          Edit Employee Details
+        </Button>
       </header>
 
       {/* Stats */}
@@ -171,46 +240,77 @@ export default function OwnerDashboard() {
             <Button onClick={handleInviteUser}>Send Invite</Button>
           </CardContent>
         </Card>
-
-        <Card className="rounded-2xl shadow-sm">
-          <CardContent>
-            <h2 className="text-xl font-semibold mb-4">Update Your Employee Details</h2>
-            {Object.keys(employeeForm).map(key => (
-              <div key={key} className="mb-2">
-                <label className="block font-medium text-gray-700 capitalize">{key.replace(/([A-Z])/g, " $1")}</label>
-                <input
-                  type={key === "hireDate" ? "date" : "text"}
-                  name={key}
-                  value={(employeeForm as any)[key]}
-                  onChange={handleEmployeeChange}
-                  className="border px-3 py-2 rounded w-full"
-                />
-              </div>
-            ))}
-            <Button onClick={handleEmployeeSubmit}>Save</Button>
-          </CardContent>
-        </Card>
       </section>
 
-      {/* Pending Quotes */}
+      {/* Draft Quotes */}
       <section className="mb-10">
-        <h2 className="text-xl font-semibold mb-4">Pending Quotes / Drafts</h2>
-        {pendingQuotes.length === 0 ? (
-          <p>No pending quotes</p>
+        <h2 className="text-xl font-semibold mb-4">Draft Quotes / Awaiting Prices</h2>
+        <div ref={draftContainerRef} className="max-h-96 overflow-auto space-y-2">
+          {draftQuotes.length === 0 ? (
+            <p>No draft quotes</p>
+          ) : (
+            draftQuotes.map(quote => (
+              <Card
+                key={quote.uuid}
+                className="cursor-pointer hover:shadow-lg transition"
+                onClick={() => router.push(getQuoteURL(quote.uuid))}
+              >
+                <CardContent>
+                  <p className="font-semibold">{quote.contact_first_name} {quote.contact_last_name}</p>
+                  <p className="text-gray-500">Total: ${quote.total_amount}</p>
+                  <p className="text-sm text-gray-400">Status: {quote.status}</p>
+                </CardContent>
+              </Card>
+            ))
+          )}
+          {fetchingDrafts && <p className="text-gray-500 text-center py-2">Loading more drafts...</p>}
+        </div>
+      </section>
+
+      {/* Sent Quotes */}
+      <section className="mb-10">
+        <h2 className="text-xl font-semibold mb-4">Sent Quotes / Awaiting Customer Reply</h2>
+        <div ref={sentContainerRef} className="max-h-96 overflow-auto space-y-2">
+          {sentQuotes.length === 0 ? (
+            <p>No sent quotes</p>
+          ) : (
+            sentQuotes.map(quote => (
+              <Card
+                key={quote.uuid}
+                className="cursor-pointer hover:shadow-lg transition"
+                onClick={() => router.push(getQuoteURL(quote.uuid))}
+              >
+                <CardContent>
+                  <p className="font-semibold">{quote.contact_first_name} {quote.contact_last_name}</p>
+                  <p className="text-gray-500">Total: ${quote.total_amount}</p>
+                  <p className="text-sm text-gray-400">Status: {quote.status}</p>
+                </CardContent>
+              </Card>
+            ))
+          )}
+          {fetchingSent && <p className="text-gray-500 text-center py-2">Loading more sent quotes...</p>}
+        </div>
+      </section>
+
+      {/* Expired Quotes */}
+      <section className="mb-10">
+        <h2 className="text-xl font-semibold mb-4">Expired Quotes</h2>
+        {expiredQuotes.length === 0 ? (
+          <p>No expired quotes</p>
         ) : (
-          <ul className="space-y-2">
-            {pendingQuotes.map(quote => (
-              <li key={quote.uuid} className="border p-3 rounded flex justify-between items-center">
-                <span>{quote.contact_first_name} {quote.contact_last_name} - ${quote.total_amount}</span>
-                <Button
-                  onClick={() => router.push(`/quotes/edit/${quote.uuid}`)}
-                  size="sm"
-                >
-                  Update Quote
-                </Button>
-              </li>
-            ))}
-          </ul>
+          expiredQuotes.map(quote => (
+            <Card
+              key={quote.uuid}
+              className="cursor-pointer hover:shadow-lg transition"
+              onClick={() => router.push(getQuoteURL(quote.uuid))}
+            >
+              <CardContent>
+                <p className="font-semibold">{quote.contact_first_name} {quote.contact_last_name}</p>
+                <p className="text-gray-500">Total: ${quote.total_amount}</p>
+                <p className="text-sm text-gray-400">Status: {quote.status}</p>
+              </CardContent>
+            </Card>
+          ))
         )}
       </section>
     </div>

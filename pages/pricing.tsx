@@ -11,6 +11,6 @@ export default function PricingPage(props: Props) {
             </h1>
         </div>
     </div>
-  )
+  );
 }
 

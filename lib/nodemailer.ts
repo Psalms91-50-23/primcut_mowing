@@ -19,7 +19,6 @@ export const sendEmail = async (
       pass: process.env.EMAIL_PASS,
     },
   });
-  // background-image: url('https://yourdomain.com/path-to-image.jpg'); 
 
   const htmlImages = images
     .filter(img => img.url)

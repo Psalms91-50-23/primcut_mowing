@@ -10,3 +10,12 @@ export { default as JobItem } from "./JobItem";
 export { default as QuickActions } from "./QuickActions";
 export { default as Stats } from "./Stats";
 export { default as Jobs } from "./Jobs";
+export { default as Spinner } from "./Spinner";
+export { default as HeaderContainer } from "./HeaderContainer";
+export { default as ContactInfoForm } from "./contactforms/ContactInfoForm";
+export { default as TotalsBox } from "./datasections/TotalsBox";
+export { default as QuoteHeader } from "./headers/QuoteHeader";
+export { default as QuoteServicesTable } from "./quotes/QuoteServicesTable";
+export { default as StatusControls } from "./statuscontrol/StatusControls";
+export { default as Header } from "./headers/Header";  // <- explicit default import
+export { default as QuoteImageModal } from "./modals/QuoteImageModal";  // <- explicit default import

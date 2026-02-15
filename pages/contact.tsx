@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLoadScript, type Libraries } from "@react-google-maps/api";
 import { toast } from "react-hot-toast";
-import { useAuth } from "../context/AuthContext"; 
+import { useAuth } from "../context/AuthContext";
+import supabase from "@/config/db";
+import Header from "@/components/headers/Header";
 
 type Props = {};
 
@@ -24,12 +26,12 @@ type FormDataType = {
 const LIBRARIES: Libraries = ["places"];
 
 export default function ContactPage(props: Props) {
-const apiKey = process.env.NEXT_PUBLIC_PLACES_API;
-const { loading } = useAuth(); // get loading state from 
+  const apiKey = process.env.NEXT_PUBLIC_PLACES_API;
+  const { loading } = useAuth(); // get loading state from 
   if (!apiKey) {
     throw new Error("NEXT_PUBLIC_PLACES_API is not set");
   }
-
+  // const memoLibraries = React.useMemo(() => LIBRARIES, [])
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: apiKey,
     libraries: LIBRARIES,
@@ -37,7 +39,7 @@ const { loading } = useAuth(); // get loading state from
 
   const autocompleteContainerRef = useRef<HTMLDivElement | null>(null);
   const autocompleteRef = useRef<google.maps.places.PlaceAutocompleteElement | null>(null);
-
+  const [imageInputKey, setImageInputKey] = useState(0);
   const [formData, setFormData] = useState<FormDataType>({
     firstName: "",
     lastName: "",
@@ -89,46 +91,47 @@ const { loading } = useAuth(); // get loading state from
     }));
   };
 
-  // ---------- NEW AUTOCOMPLETE ----------
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !autocompleteContainerRef.current || loading) return; // wait for auth
 
-    const init = async () => {
-      await google.maps.importLibrary("places");
+    const initAutocomplete = async () => {
+      // await google.maps.importLibrary("places");
+
+      // Clear old element if it exists
+      autocompleteContainerRef.current!.innerHTML = "";
 
       const placeAutocomplete = new google.maps.places.PlaceAutocompleteElement({});
 
-      if (!autocompleteContainerRef.current) return;
-      autocompleteContainerRef.current.innerHTML = "";
-      autocompleteContainerRef.current.appendChild(placeAutocomplete);
+      autocompleteContainerRef.current!.appendChild(placeAutocomplete);
 
-      placeAutocomplete.addEventListener("gmp-select", async ({ placePrediction }: any) => {
-      const place = placePrediction.toPlace();
-      await place.fetchFields({
-        fields: ["displayName", "formattedAddress", "addressComponents"],
-      });
+      placeAutocomplete.addEventListener(
+        "gmp-select",
+        async ({ placePrediction }: any) => {
+          const place = placePrediction.toPlace();
+          await place.fetchFields({
+            fields: ["formattedAddress", "addressComponents"],
+          });
 
-      const address =
-        place.formattedAddress || place.displayName || placePrediction.description || "";
+          const address =
+            place.formattedAddress || place.displayName || placePrediction.description || "";
 
-      const postcodeComponent =
-        place.addressComponents?.find((c: any) =>
-          c.types?.includes("postal_code")
-        ) || null;
+          const postcodeComponent = place.addressComponents?.find((c: any) =>
+            c.types?.includes("postal_code")
+          );
 
-      const postcode = postcodeComponent?.longName || "";
+          const postcode = postcodeComponent?.longName || "";
 
-      // Append postcode to address if it exists
-      const fullAddress = postcode ? `${address} ${postcode}` : address;
+          const fullAddress = postcode ? `${address} ${postcode}` : address;
 
-      setFormData(prev => ({ ...prev, address: fullAddress }));
-      });
+          setFormData(prev => ({ ...prev, address: fullAddress }));
+        }
+      );
 
       autocompleteRef.current = placeAutocomplete;
     };
 
-    init();
-  }, [isLoaded]);
+    initAutocomplete();
+  }, [isLoaded, loading]);
 
   const handleServiceChange = (index: number) => {
     setServices(prev => {
@@ -181,7 +184,9 @@ const { loading } = useAuth(); // get loading state from
     e.preventDefault();
     setIsSubmitting(true);
 
+    // Validation
     if (!formData.mobile && !formData.landline) {
+
       alert("Please provide at least one contact number.");
       setIsSubmitting(false);
       return;
@@ -189,12 +194,14 @@ const { loading } = useAuth(); // get loading state from
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
+
       alert("Please enter a valid email address.");
       setIsSubmitting(false);
       return;
     }
 
     if (!formData.address) {
+
       alert("Please enter your address.");
       setIsSubmitting(false);
       return;
@@ -209,28 +216,68 @@ const { loading } = useAuth(); // get loading state from
         quantity: 1,
       }));
 
-    const payload = {
-      first_name: formData.firstName,
-      last_name: formData.lastName,
-      mobile: formData.mobile,
-      landline: formData.landline,
-      preferred_contact_method: preferredContactMethod,
-      email: formData.email,
-      message: formData.message,
-      address: formData.address,
-      services: selectedServices,
-      images: formData.images.filter(img => img.url),
-    };
+    if (selectedServices.length === 0) {
+      alert("Please select at least one service.");
+      setIsSubmitting(false);
+      return;
+    }
 
+    const hasAtLeastOneImage = imageFiles.some(file => file !== null);
+    if (!hasAtLeastOneImage) {
+      alert("Please upload at least one image before submitting.");
+      setIsSubmitting(false);
+      return;
+    }
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotes`, {
+      // 1 Upload images to Supabase
+      const uploadedImages = await Promise.all(
+        imageFiles.map(async (file, index) => {
+          if (!file) return null;
+          const fileName = `quotes/${Date.now()}_${file.name}`;
+
+          const { data, error } = await supabase.storage
+            .from('quote-images')
+            .upload(fileName, file);
+
+          if (error) throw error;
+
+          const url = supabase.storage
+            .from('quote-images')
+            .getPublicUrl(fileName).data.publicUrl;
+
+          return {
+            label: formData.images[index].label || `Image ${index + 1}`,
+            url,
+          };
+        })
+      );
+
+      const imagesPayload = uploadedImages.filter(Boolean);
+
+      // 2Build payload with uploaded image URLs
+      const payload = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        mobile: formData.mobile,
+        landline: formData.landline,
+        preferred_contact_method: preferredContactMethod,
+        email: formData.email,
+        message: formData.message,
+        address: formData.address,
+        services: selectedServices,
+        images: imagesPayload,
+      };
+
+      //  Send payload to backend
+      const res = await fetch(`/api/quotes/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
+      console.log({ res })
       if (res.ok) {
         toast.success("Message sent successfully!");
+        // Reset form, previews, and services
         setFormData({
           firstName: "",
           lastName: "",
@@ -250,17 +297,23 @@ const { loading } = useAuth(); // get loading state from
         setImagePreviews([null, null, null, null]);
         setServices(prev => prev.map(s => ({ ...s, selected: false })));
         clearAutocompleteInput();
+        setImageInputKey(prev => prev + 1);
+        console.log("before reload")
+        // setTimeout(() => {
+        //   window.location.reload();
+        // }, 1500); // optional delay to show toast first
       } else {
-        alert("Failed to send message. Please try again.");
+        const errorData = await res.json();
+        alert(errorData?.error || "Failed to send message. Please try again.");
       }
     } catch (err) {
       console.error(err);
-      alert("An error occurred. Please try again later.");
+      alert("An error occurred while sending your quote. Please try again later.");
     } finally {
       setIsSubmitting(false);
     }
   };
-  
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -269,109 +322,120 @@ const { loading } = useAuth(); // get loading state from
     );
   }
   if (loadError) return <div>Map failed to load</div>;
-  if (!isLoaded) return <div>Loading...</div>;
+  if (!isLoaded) return (
+    <div className="flex justify-center items-center h-screen">
+      <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
+    </div>
+  );
 
   return (
-    <div className="max-w-[1600px] mx-auto px-6 w-screen min-h-screen flex flex-col items-center justify-start bg-green-50 text-black pt-24">
-      <div className="mt-10 text-center space-y-2 px-4">
-        <h1 className="text-3xl md:text-4xl font-bold mb-6">Contact Us</h1>
-        <p className="text-xl italic font-bold md:text-base text-gray-700 mb-4">
-          Our team strives to reply to all messages within 2 business working days.
-        </p>
-        <p className="text-lg font-semibold text-gray-800">
-          For an accurate quote, please send images.
-        </p>
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        autoComplete="off"
-        className="w-full max-w-md bg-white p-6 rounded shadow space-y-4 my-10"
-      >
-        {/* NAME */}
-        <div className="flex flex-row space-x-2">
-          <div className="w-1/2">
-            <label htmlFor="firstName" className="block font-medium mb-1">
-              First Name
-            </label>
-            <input
-              name="firstName"
-              type="text"
-              autoComplete="off"
-              value={formData.firstName}
-              onChange={handleChange}
-              className="input-border w-full border px-3 py-2 rounded"
-              placeholder="Enter your first Name"
-              required
-            />
-          </div>
-
-          <div className="w-1/2">
-            <label htmlFor="lastName" className="block font-medium mb-1">
-              Last Name
-            </label>
-            <input
-              name="lastName"
-              type="text"
-              autoComplete="off"
-              value={formData.lastName}
-              onChange={handleChange}
-              className="input-border w-full border px-3 py-2 rounded"
-              placeholder="Enter your last name"
-              required
-            />
-          </div>
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-start text-black pb-5">
+      {/* Background Image */}
+      <div
+        className="absolute inset-0 bg-cover bg-center z-0"
+        style={{ backgroundImage: "url('/images/contact_us_1.png')" }}
+      />
+      {/* Dark overlay */}
+      <div className="absolute inset-0 bg-black/50 z-0"></div>
+      {/* Main content wrapper */}
+      <div className="relative z-10 w-full flex flex-col items-center pt-20 px-4">
+        {/* Header text */}
+        <div className="text-center space-y-2 max-w-2xl">
+          <h1 className="text-3xl md:text-4xl font-bold mb-6 text-white">Contact Us</h1>
+          <p className="text-xl italic font-bold md:text-base text-gray-200 mb-4">
+            Our team strives to reply to all messages within 2 business working days.
+          </p>
+          <p className="text-lg font-semibold text-gray-100 pb-6 sm:text-base">
+            For an accurate quote, please send images.
+          </p>
         </div>
-        <div className="relative">
-          <label htmlFor="address" className="block font-medium mb-1">
-            Address
-          </label>
-          <div ref={autocompleteContainerRef} className="gmp-place-autocomplete" />
+        <div className="w-full max-w-lg">
+          <Header />
         </div>
-        {/* PHONE */}
-        <div className="flex flex-col">
+        <form
+          onSubmit={handleSubmit}
+          autoComplete="off"
+          className="w-full max-w-lg bg-white/95  rounded-b-sm shadow space-y-4 pb-5 px-6 pt-5"
+        >
+          {/* NAME */}
           <div className="flex flex-row gap-4">
             <div className="w-1/2">
-              <label className="block font-medium mb-1">Mobile</label>
+              <label htmlFor="firstName" className="block font-medium mb-1 py-2">
+                First Name
+              </label>
               <input
-                name="mobile"
+                name="firstName"
                 type="text"
                 autoComplete="off"
-                value={formData.mobile}
+                value={formData.firstName}
                 onChange={handleChange}
                 className="input-border w-full border px-3 py-2 rounded"
-                placeholder="Mobile number"
+                placeholder="Enter your first Name"
+                required
               />
             </div>
             <div className="w-1/2">
-              <label className="block font-medium mb-1">Landline</label>
+              <label htmlFor="lastName" className="block font-medium mb-1 py-2">
+                Last Name
+              </label>
               <input
-                name="landline"
+                name="lastName"
                 type="text"
                 autoComplete="off"
-                value={formData.landline}
+                value={formData.lastName}
                 onChange={handleChange}
                 className="input-border w-full border px-3 py-2 rounded"
-                placeholder="Landline number"
+                placeholder="Enter your last name"
+                required
               />
             </div>
           </div>
-
-          <div>
-            <span className="text-xs italic">
-              Only one contact number is required, but you may add both if you’d like.
-            </span>
+          {/* ADDRESS AUTOCOMPLETE */}
+          <div className="relative">
+            <label htmlFor="address" className="block font-medium mb-1 py-2">
+              Address
+            </label>
+            <div ref={autocompleteContainerRef} className="gmp-place-autocomplete" />
           </div>
-
-          <div className="pt-1">
-            <div>
-              <span>What is your preferred contact</span>
+          {/* PHONE */}
+          <div className="flex flex-col">
+            <div className="flex flex-row gap-4">
+              <div className="w-1/2">
+                <label className="block font-medium mb-1 py-2">Mobile</label>
+                <input
+                  name="mobile"
+                  type="text"
+                  autoComplete="off"
+                  value={formData.mobile}
+                  onChange={handleChange}
+                  className="input-border w-full border px-3 py-2 rounded"
+                  placeholder="Mobile number"
+                />
+              </div>
+              <div className="w-1/2">
+                <label className="block font-medium mb-1 py-2">Landline</label>
+                <input
+                  name="landline"
+                  type="text"
+                  autoComplete="off"
+                  value={formData.landline}
+                  onChange={handleChange}
+                  className="input-border w-full border px-3 py-2 rounded"
+                  placeholder="Landline number"
+                />
+              </div>
+            </div>
+            <span className="text-xs italic py-3">
+              Only one contact number is required and add area code for landline, but you may add both if you’d like.
+            </span>
+            <div className="relative flex flex-col pt-1">
+              <label className="py-2 mb-1">Preferred contact method</label>
               <select
                 value={preferredContactMethod}
                 onChange={(e) =>
                   setPreferredContactMethod(e.target.value as "mobile" | "landline" | "email")
                 }
-                className="input-border w-full border px-3 py-2 rounded border hover:cursor-pointer"
+                className="input-border w-full border py-3 rounded hover:cursor-pointer px-3"
               >
                 <option value="mobile">Mobile</option>
                 <option value="landline">Landline</option>
@@ -379,108 +443,104 @@ const { loading } = useAuth(); // get loading state from
               </select>
             </div>
           </div>
-        </div>
-
-        {/* EMAIL */}
-        <div>
-          <label htmlFor="email" className="block font-medium mb-1">
-            Email
-          </label>
-          <input
-            name="email"
-            type="email"
-            id="email"
-            autoComplete="off"
-            value={formData.email}
-            onChange={handleChange}
-            className="input-border w-full border px-3 py-2 rounded"
-            placeholder="Enter your email"
-            required
-          />
-        </div>
-
-        {/* MESSAGE */}
-        <div className="">
-          <label htmlFor="message" className="block font-medium mb-1">
-            Message
-          </label>
-          <textarea
-            name="message"
-            id="message"
-            autoComplete="off"
-            value={formData.message}
-            onChange={handleChange}
-            className="input-border w-full border px-3 py-2 rounded resize-none overflow-y-scroll overflow-x-hidden"
-            placeholder="Write your message"
-            rows={5}
-            required
-          />
-        </div>
-
-        {/* SERVICES */}
-        <div className="space-y-2">
-          <label className="font-medium">Select Services</label>
-          <div className="flex flex-wrap gap-2">
-            {services.map((service, index) => (
-              <label key={service.value} className="flex items-center gap-2">
+          {/* EMAIL */}
+          <div>
+            <label htmlFor="email" className="block font-medium mb-1 py-2">
+              Email
+            </label>
+            <input
+              name="email"
+              type="email"
+              id="email"
+              autoComplete="off"
+              value={formData.email}
+              onChange={handleChange}
+              className="input-border w-full border px-3 py-2 rounded"
+              placeholder="Enter your email"
+              required
+            />
+          </div>
+          {/* MESSAGE */}
+          <div>
+            <label htmlFor="message" className="block font-medium mb-1 py-2">
+              Message
+            </label>
+            <textarea
+              name="message"
+              id="message"
+              autoComplete="off"
+              value={formData.message}
+              onChange={handleChange}
+              className="input-border w-full border px-3 py-2 rounded resize-none overflow-y-scroll overflow-x-hidden"
+              placeholder="Write your message"
+              rows={5}
+              required
+            />
+          </div>
+          {/* SERVICES */}
+          <div className="space-y-2">
+            <label className="text-lg py-3">Select Services</label>
+            <div className="flex flex-wrap gap-2">
+              {services.map((service, index) => (
+                <label key={service.value} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={service.selected}
+                    onChange={() => handleServiceChange(index)}
+                  />
+                  {service.label}
+                </label>
+              ))}
+            </div>
+          </div>
+          {/* IMAGES */}
+          <div className="space-y-4">
+            <div className="font-semibold">Upload Images</div>
+            {formData.images.map((img, index) => (
+              <div key={index} className="flex flex-col sm:flex-row items-center gap-4">
                 <input
-                  type="checkbox"
-                  checked={service.selected}
-                  onChange={() => handleServiceChange(index)}
+                  type="text"
+                  placeholder={`Image ${index + 1} eg front yard`}
+                  value={img.label}
+                  onChange={(e) => handleImageLabelChange(index, e.target.value)}
+                  className="input-border w-full sm:w-1/2 border px-3 py-2 rounded"
                 />
-                {service.label}
-              </label>
+                <input
+                  key={imageInputKey + index}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    handleImageFileChange(index, e.target.files?.[0] || null)
+                  }
+                  className="input-border w-full sm:w-1/2 border px-3 py-2 rounded hover:cursor-pointer"
+                />
+                {imagePreviews[index] && (
+                  <div className="w-20 h-14 overflow-hidden rounded bg-gray-100 py-2">
+                    <img
+                      src={imagePreviews[index]!}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-full rounded object-cover"
+                    />
+                  </div>
+                )}
+              </div>
             ))}
           </div>
-        </div>
-
-        {/* IMAGES WITH PREVIEW */}
-        <div className="space-y-4">
-          <div className="font-semibold">Upload Images</div>
-
-          {formData.images.map((img, index) => (
-            <div key={index} className="flex items-center gap-4">
-              <input
-                type="text"
-                placeholder={`Image ${index + 1} eg front yard`}
-                value={img.label}
-                onChange={(e) => handleImageLabelChange(index, e.target.value)}
-                className="input-border w-1/2 border px-3 py-2 rounded"
-              />
-
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleImageFileChange(index, e.target.files?.[0] || null)}
-                className="input-border w-1/2 border px-3 py-2 rounded hover:cursor-pointer"
-              />
-
-              {imagePreviews[index] && (
-                <div className="w-14 h-10 overflow-hidden rounded bg-gray-100">
-                  <img
-                    src={imagePreviews[index]!}
-                    alt={`Preview ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* SUBMIT */}
-        <div>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`w-full flex items-center justify-center gap-2 py-2 rounded hover:cursor-pointer transition
-              ${isSubmitting ? "bg-green-600 cursor-not-allowed" : "bg-green-700 hover:bg-green-800"}
-              text-white`}
-          >
-            {isSubmitting ? "Sending..." : "Send Message"}
-          </button>
-        </div>
-      </form>
+          {/* SUBMIT BUTTON */}
+          <div className="py-5">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`w-full flex items-center justify-center gap-2 py-2 rounded transition
+                ${isSubmitting ? "bg-green-600 cursor-not-allowed" : "bg-green-700 hover:bg-green-900 hover:cursor-pointer"}
+                text-white`}
+            >
+              {isSubmitting ? "Sending..." : "Send Message"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
+
 }

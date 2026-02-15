@@ -1,0 +1,30 @@
+// pages/api/quotes/admin/uuid/[quote_uuid].ts
+import type { NextApiRequest, NextApiResponse } from "next";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { quote_uuid } = req.query;
+  
+  if (req.method === "PATCH") {
+    try {
+      const backendRes = await fetch(
+        `${process.env.BACKEND_URL}/api/quotes/uuid/${quote_uuid}`,
+        {
+          method: "PATCH",
+          headers: { 
+            "Content-Type": "application/json",
+            "Cookie": req.headers.cookie || "",
+          },
+          body: JSON.stringify(req.body),
+        }
+      );
+
+      const data = await backendRes.json();
+      return res.status(backendRes.status).json(data);
+    } catch (err) {
+      console.error("API PATCH quote error:", err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  } else {
+    return res.status(405).json({ message: "Method Not Allowed" });
+  }
+}

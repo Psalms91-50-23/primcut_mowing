@@ -31,6 +31,27 @@ export async function registerUser(payload: RegisterPayload) {
   }
 }
 
+export const obfuscateName = (name: string) => {
+  if (!name) return "";
+  return name.length <= 2 ? name[0] + "*" : name.slice(0, 2) + "*".repeat(name.length - 2);
+}
+
+export function obfuscateEmail(email?: string): string {
+  if (!email || !email.includes("@")) return "";
+
+  const [local, domain] = email.split("@");
+
+  if (local.length <= 2) {
+    return `${local[0] || "*"}***@${domain}`;
+  }
+
+  const visibleStart = local.slice(0, 2);
+  const visibleEnd = local.length > 4 ? local.slice(-1) : "";
+  const hiddenLength = local.length - visibleStart.length - visibleEnd.length;
+
+  return `${visibleStart}${"*".repeat(Math.max(hiddenLength, 3))}${visibleEnd}@${domain}`;
+}
+
 export const formatPrettyDate = (date: string) =>
   new Date(date).toLocaleString("en-NZ", {
     weekday: "short",
@@ -115,3 +136,40 @@ export const sendPasswordResetEmail = async ({ email, recaptchaToken, recaptchaV
 
   return data;
 };
+
+export function sanitizeDecimalInput(value: string): string {
+  // Remove all characters before the first digit
+  const match = value.match(/\d.*$/);
+  if (!match) return "0.00";
+
+  let sanitized = match[0];
+
+  // Remove all non-digit and non-dot characters
+  sanitized = sanitized.replace(/[^0-9.]/g, "");
+
+  // Keep only the first dot
+  const parts = sanitized.split(".");
+  if (parts.length > 2) {
+    sanitized = parts[0] + "." + parts.slice(1).join("");
+  }
+
+  // Remove leading zeros before decimal
+  const [intPart, decPart] = sanitized.split(".");
+  sanitized =
+    intPart.replace(/^0+/, "") || "0" + (decPart !== undefined ? "." + decPart : "");
+
+  // If starts with dot, prepend 0
+  if (sanitized.startsWith(".")) {
+    sanitized = "0" + sanitized;
+  }
+
+  // Format to 2 decimals
+  const num = parseFloat(sanitized);
+  if (isNaN(num)) return "0.00";
+  return num.toFixed(2);
+}
+
+export function sanitizeIntegerInput(input: string): number {
+  const sanitized = input.replace(/\D/g, ""); // remove non-digits
+  return sanitized ? parseInt(sanitized, 10) : 1;
+}

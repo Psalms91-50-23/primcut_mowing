@@ -3,19 +3,33 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar, Users, FileText, DollarSign } from "lucide-react";
 import { formatFullName } from "../../utils/utils";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth, roleRedirectMap } from "../../context/AuthContext";
+import { useRouter } from "next/router";
+import { useRoleRedirect } from "@/hooks/useRoleRedirect";
 
 export default function CustomerDashboard() {
   const { user, logout } = useAuth();
+  const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(true);
 
+  useRoleRedirect("customer");
+  
   useEffect(() => {
-    if (user) {
+      if (!user) {
+        router.replace("/404");
+        return;
+      }
+
+      if (user.role !== "customer") {
+        const redirectPath = roleRedirectMap[user.role] || "/";
+        router.replace(redirectPath);
+        return;
+      }
+
       setFullName(formatFullName(user.first_name, user.last_name));
       setLoading(false);
-    }
-  }, [user]);
+  }, [user, router]);
 
   if (loading) {
     return (

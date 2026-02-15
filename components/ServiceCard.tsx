@@ -19,8 +19,7 @@ const ServiceCard = ({ imgSrc, title, descriptionHook, description } : Props) =>
       </div>
       
     </div>
-
-  )
+  );
 }
 
 export default ServiceCard
