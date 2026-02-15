@@ -40,7 +40,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       default:
         return res.status(405).json({ error: "Method Not Allowed" });
     }
-    console.log({backendRes});
     const contentType = backendRes.headers.get("content-type") || "";
     let data;
     if (contentType.includes("application/json")) {

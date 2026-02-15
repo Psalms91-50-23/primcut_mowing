@@ -158,10 +158,10 @@ export default function QuoteView() {
     }
   };
 
-  useEffect(() => {
-    console.log({quoteToken}, " useEffect 1`11")
-  }, [quoteToken])
-  console.log({quote})
+  // useEffect(() => {
+  //   console.log({quoteToken}, "useEffect 1")
+  // }, [quoteToken])
+  // console.log({quote})
   // Loading spinner
   if (loading)
     return (
@@ -208,7 +208,7 @@ export default function QuoteView() {
       />
       <div className="absolute inset-0 bg-black/40 z-0" />
 
-      <div className="relative z-10 max-w-5xl mx-auto mt-6 space-y-6 shadow-[-4px_4px_12px_rgba(0,0,0,0.2)] bg-white/90 rounded-2xl">
+      <div className="relative z-10 max-w-5xl mx-auto mt-6 space-y-6 shadow-[-4px_4px_12px_rgba(0,0,0,0.2)] bg-white/96 rounded-2xl">
         {/* Header */}
         <div className="flex flex-col items-start mb-6 bg-green-900 py-5 rounded-t-lg">
           <h1 className="flex font-bold items-center text-3xl ">
