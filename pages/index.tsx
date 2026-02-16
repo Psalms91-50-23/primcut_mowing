@@ -60,12 +60,12 @@ const Home: React.FC<Props> = () => {
 
   return (
     <>
-      <header className="relative w-full h-[450px] overflow-hidden group py-3 ">
+      <header className="relative w-full h-[1050px] overflow-hidden group py-3 ">
         <div
           className="absolute inset-0 bg-cover bg-center opacity-80 transition-opacity duration-300 
                group-hover:opacity-100 sm:opacity-60 sm:group-hover:opacity-90 
                opacity-0 bg-slide-left"
-          style={{ backgroundImage: "url('/images/perfect_lawn.jpeg')" }}
+          style={{ backgroundImage: "url('/images/emoji_mowing_lawn_1.png')" }}
         ></div>
         <div className="absolute inset-0 bg-black/20 transition-opacity duration-300 group-hover:bg-black/10 sm:bg-black/40 sm:group-hover:bg-black/20"></div>
         <div className="relative z-10 flex flex-col justify-center items-center h-full text-center text-white px-4 opacity-0 text-slide-right">
