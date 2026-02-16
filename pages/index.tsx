@@ -60,7 +60,7 @@ const Home: React.FC<Props> = () => {
 
   return (
     <>
-      <header className="relative w-full h-[1050px] overflow-hidden group py-3 ">
+      <header className="relative w-full h-auto overflow-hidden group py-3 md:h-[950px]">
         <div
           className="absolute inset-0 bg-cover bg-center opacity-80 transition-opacity duration-300 
                group-hover:opacity-100 sm:opacity-60 sm:group-hover:opacity-90 
@@ -69,10 +69,10 @@ const Home: React.FC<Props> = () => {
         ></div>
         <div className="absolute inset-0 bg-black/20 transition-opacity duration-300 group-hover:bg-black/10 sm:bg-black/40 sm:group-hover:bg-black/20"></div>
         <div className="relative z-10 flex flex-col justify-center items-center h-full text-center text-white px-4 opacity-0 text-slide-right">
-          <h2 className="text-5xl md:text-6xl font-bold mb-4">
+          <h2 className="text-4xl p-5 md:text-6xl font-bold">
             Your Lawn, Our Passion
           </h2>
-          <p className="text-xl md:text-2xl font-semibold mb-6">
+          <p className="text-lg p-4 md:text-2xl font-semibold">
             Expert lawn mowing, efficient rubbish removal, and reliable property
             maintenance to keep your home looking its absolute best.
           </p>
