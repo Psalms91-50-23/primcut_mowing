@@ -54,6 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * Fetch current user from backend.
    * Backend reads HttpOnly cookies and validates tokens.
    */
+  
   const fetchUser = async () => {
     try {
       const res = await fetch(

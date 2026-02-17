@@ -105,10 +105,6 @@ export default function AuthPage() {
   );
 
   // -----------------------------
-  // HANDLERS
-  // -----------------------------
-
-  // -----------------------------
   // LOGIN WITH V3 + V2 FALLBACK
   // -----------------------------
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {

@@ -7,8 +7,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-
-    const backendRes = await fetch(`${process.env.BACKEND_URL}/api/users/auth/me`, {
+    const backendUrl = process.env.BACKEND_URL;
+    if (!backendUrl) throw new Error("BACKEND_URL not defined");
+    const backendRes = await fetch(`${backendUrl}/api/users/auth/me`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

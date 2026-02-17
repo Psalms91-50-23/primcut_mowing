@@ -28,6 +28,9 @@ const LIBRARIES: Libraries = ["places"];
 export default function ContactPage(props: Props) {
   const apiKey = process.env.NEXT_PUBLIC_PLACES_API;
   const { loading } = useAuth(); // get loading state from 
+  const options = {
+    componentRestrictions: { country: "NZ" } // restrict to New Zealand
+  };
   if (!apiKey) {
     throw new Error("NEXT_PUBLIC_PLACES_API is not set");
   }
@@ -99,8 +102,16 @@ export default function ContactPage(props: Props) {
 
       // Clear old element if it exists
       autocompleteContainerRef.current!.innerHTML = "";
-
-      const placeAutocomplete = new google.maps.places.PlaceAutocompleteElement({});
+       // Bounds for all of New Zealand
+      // const nzBounds = new google.maps.LatLngBounds(
+      //   new google.maps.LatLng(-47.3, 166.2), // southwest corner of NZ
+      //   new google.maps.LatLng(-34.4, 178.6)  // northeast corner of NZ
+      // );
+      const placeAutocomplete = new google.maps.places.PlaceAutocompleteElement({
+        componentRestrictions: { country: ["nz"] },
+        requestedRegion: 'nz',
+         // restrict to New Zealand
+      });
 
       autocompleteContainerRef.current!.appendChild(placeAutocomplete);
 
