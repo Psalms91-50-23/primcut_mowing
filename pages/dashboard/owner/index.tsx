@@ -19,7 +19,7 @@ type EmployeeFormType = {
 };
 
 export default function OwnerDashboard() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [fullName, setFullName] = useState("");
@@ -40,14 +40,14 @@ export default function OwnerDashboard() {
   const [daysOld, setDaysOld] = useState<number>(0);
 
   useRoleRedirect("owner");
-
   // -----------------------
   // Initial load
   // -----------------------
   useEffect(() => {
-    setLoading(true);
+    // setLoading(true);
+    setLoading(true); // page-level spinner
     if (!user) {
-      router.replace("/404");
+      router.replace("/auth");
       return;
     }
 

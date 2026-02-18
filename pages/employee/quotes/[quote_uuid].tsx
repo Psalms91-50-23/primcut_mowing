@@ -57,7 +57,7 @@ export default function EmployeeQuotePage() {
       router.replace(`/auth?redirect=${encodeURIComponent(router.asPath)}`);
       return;
     }
-    if (!["admin", "owner", "employee"].includes(role)) {
+    if (!role || !["admin", "owner", "employee"].includes(role)) {
       router.replace("/auth");
     }
   }, [loading, user, role, router]);

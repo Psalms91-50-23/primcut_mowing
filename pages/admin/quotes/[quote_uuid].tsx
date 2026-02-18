@@ -55,7 +55,7 @@ export default function QuoteAdminPage() {
     router.replace(`/auth?redirect=${encodeURIComponent(router.asPath)}`);
     return;
   }
-    if (!user || !["admin", "owner", "employee"].includes(role)) {
+    if (!user || !role || !["admin", "owner", "employee"].includes(role)) {
       router.replace("/auth"); 
     }
   }, [loading, user, role, router ]);
@@ -189,7 +189,7 @@ export default function QuoteAdminPage() {
     </div>
   );
   // Protect route in render (extra safety)
-  if (!user || !["admin", "owner", "employee"].includes(role)) {
+  if (!user || !role || !["admin", "owner", "employee"].includes(role)) {
     return <div>Not authorized to view this page.</div>;
   }
   // Optional: if quote is missing

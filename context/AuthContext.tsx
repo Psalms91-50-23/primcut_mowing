@@ -27,7 +27,7 @@ export interface UserType  {
 
 type AuthContextType = {
   user: UserType | null;
-  role: string;
+  role: string | null;
   loading: boolean;
   logout: () => Promise<void>;
   hasRole: (roles: string | string[]) => boolean;
@@ -46,10 +46,10 @@ export const roleRedirectMap: Record<string, string> = {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserType | null>(null);
-  const [role, setRole] = useState<string>("customer");
+  const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const router = useRouter();
-
+  
   /**
    * Fetch current user from backend.
    * Backend reads HttpOnly cookies and validates tokens.
@@ -64,34 +64,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           credentials: "include", 
         }
       );
-
       if (!res.ok) {
         setUser(null);
-        setRole("customer");
+        setRole(null);
         return;
       }
-
       const json = await res.json();
       if (!json?.user) {
         setUser(null);
-        setRole("customer");
+        setRole(null);
         return;
       }
+      console.log({json})
       setUser(json.user);
-      const userRole = json.user.role || "customer";
+      const userRole = json.user?.role ?? null;
       setRole(userRole);
       
         // Redirect to role-based dashboard if on "/"
-      if (router.pathname === "/") {
-        const redirectPath = roleRedirectMap[userRole] || "/customer";
-        router.replace(redirectPath);
-      }
-
+      // if ( router.pathname === "/" && userRole && roleRedirectMap[userRole]
+      // ) {
+      //      console.log("8")
+      //   router.replace(roleRedirectMap[userRole]);
+      // }
+      // if (router.pathname === "/") {
+      //   const redirectPath = roleRedirectMap[userRole] || "/";
+      //   router.replace(redirectPath);
+      // }
       return json.user
     } catch (err) {
       console.error("fetchUser failed", err);
       setUser(null);
-      setRole("customer");
+      setRole(null);
+      return null;
     }
   };
 
@@ -108,8 +112,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     let data: any = null;
+    console.log({res})
     try {
       data = await res.json();
+      console.log({data}, " auth login")
     } catch {
       // backend returned no JSON
     }
@@ -136,7 +142,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * Backend clears cookies.
    * Frontend clears state.
    */
+
   const logout = async () => {
+
     try {
       await fetch(`/api/users/auth/logout`, {
         method: "POST",
@@ -144,9 +152,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
     } catch (err) {
       console.error("logout failed", err);
+         console.log("13")
     } finally {
-      setUser(null);
-      setRole("customer");
+         setUser(null);
+        setRole("customer");
     }
   };
 
@@ -154,10 +163,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * Check if user has a role or one of multiple roles
    */
   const hasRole = (roles: string | string[]): boolean => {
-    if (!user) return false;
+    if (!user || !role) return false;
     if (typeof roles === "string") return role === roles;
     return roles.includes(role);
   };
+  // const hasRole = (roles: string | string[]): boolean => {
+  //   if (!user) return false;
+  //   if (typeof roles === "string") return role === roles;
+  //   return roles.includes(role);
+  // };
 
   /**
    * On mount, fetch backend auth state

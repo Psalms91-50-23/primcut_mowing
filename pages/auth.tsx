@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import PasswordStrengthBar from "react-password-strength-bar";
 import { toast } from "react-hot-toast";
 import { useAuth, roleRedirectMap } from "../context/AuthContext";
@@ -10,7 +10,7 @@ export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const { loadV3, loadV2 } = useRecaptcha();
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, loading, user } = useAuth();
   const [showV2, setShowV2] = useState(false);
   // -----------------------------
   // Form states
@@ -34,6 +34,14 @@ export default function AuthPage() {
 
   const [loginError, setLoginError] = useState<string | null>(null);
 
+    useEffect(() => {
+    if (loading) return; // wait until auth state is known
+    if (!loading && user) {
+      // User is already logged in → redirect to their dashboard
+      const redirectUrl = roleRedirectMap[user.role] || "/";
+      router.replace(redirectUrl);
+    }
+  }, [user, loading, router]);
   // -----------------------------
   // reCAPTCHA helpers
   // -----------------------------
@@ -288,6 +296,14 @@ export default function AuthPage() {
       setIsResetting(false);
     }
   };
+
+  if (loading) {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-green-700 border-solid"></div>
+    </div>
+  );
+}
 
   // -----------------------------
   // JSX
