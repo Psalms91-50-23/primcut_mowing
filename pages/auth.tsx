@@ -35,13 +35,24 @@ export default function AuthPage() {
   const [loginError, setLoginError] = useState<string | null>(null);
 
     useEffect(() => {
-    if (loading) return; // wait until auth state is known
+    if (loading) return;
     if (!loading && user) {
-      // User is already logged in → redirect to their dashboard
-      const redirectUrl = roleRedirectMap[user.role] || "/";
+      const redirectUrl =
+        typeof router.query.redirect === "string" && router.query.redirect.length > 0
+          ? router.query.redirect
+          : roleRedirectMap[user.role] || "/";
       router.replace(redirectUrl);
     }
-  }, [user, loading, router]);
+  }, [user, loading, router.query.redirect, router]);
+
+  //   useEffect(() => {
+  //   if (loading) return; // wait until auth state is known
+  //   if (!loading && user) {
+  //     // User is already logged in → redirect to their dashboard
+  //     const redirectUrl = roleRedirectMap[user.role] || "/";
+  //     router.replace(redirectUrl);
+  //   }
+  // }, [user, loading, router]);
   // -----------------------------
   // reCAPTCHA helpers
   // -----------------------------
