@@ -52,7 +52,8 @@ export default function EmployeeQuotePage() {
   
   // Protect Route
   useEffect(() => {
-    if (loading) return;
+    // if (loading) return;
+    if (loading || !router.isReady) return;
     if (!user) {
       router.replace(`/auth?redirect=${encodeURIComponent(router.asPath)}`);
       return;
@@ -60,7 +61,7 @@ export default function EmployeeQuotePage() {
     if (!role || !["admin", "owner", "employee"].includes(role)) {
       router.replace("/auth");
     }
-  }, [loading, user, role, router]);
+  }, [loading, user, role, router, router.isReady]);
 
   // Fetch quote
   useEffect(() => {
