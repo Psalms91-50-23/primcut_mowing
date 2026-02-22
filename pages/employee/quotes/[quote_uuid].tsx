@@ -36,6 +36,7 @@ type Quote = {
   is_quote_sent_to_client?: boolean;
   quote_sent_at?: string;
   sent_by_user_uuid?: string;
+  employer_message?: string;
 };
 
 const GST_RATE = 0.15;
@@ -148,10 +149,10 @@ export default function EmployeeQuotePage() {
     }
 
     // ✅ Check that status is 'sent'
-    if (quote.status !== "sent") {
-      toast.error("Please change the quote status to 'Sent' before finalizing.");
-      return;
-    }
+    // if (quote.status !== "sent") {
+    //   toast.error("Please change the quote status to 'Sent' before finalizing.");
+    //   return;
+    // }
 
     if (quote.is_quote_sent_to_client) {
       toast("Quote already sent to client", { icon: "⚠️" });
@@ -237,7 +238,7 @@ export default function EmployeeQuotePage() {
   const alreadySent = quote.quote_sent_at
   ? new Date(quote.quote_sent_at).toLocaleString()
   : null;
-
+  console.log({quote})
   if (alreadySent) {
     return (
     <div className="relative flex flex-col items-center justify-center  p-4" 
@@ -384,7 +385,7 @@ export default function EmployeeQuotePage() {
                   />
                 </label>
                 {/* Status */}
-                <label className="flex flex-col flex-1 min-w-0">
+                {/* <label className="flex flex-col flex-1 min-w-0">
                   <span className="font-bold py-2">Quote Status</span>
                   <select
                     value={quote.status}
@@ -396,9 +397,32 @@ export default function EmployeeQuotePage() {
                     <option value="accepted">Accepted</option>
                     <option value="expired">Expired</option>
                   </select>
-                </label>
+                </label> */}
+              </div>
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className="font-bold py-2">Quote Status</span>
+                <div className="w-full border-2 border-gray-400 rounded px-3 h-11 flex items-center bg-gray-100">
+                  {quote.status}
+                </div>
               </div>
             </div>
+          </div>
+          {/* Employer Personalization Message */}
+          <div className="mt-4 flex flex-col">
+            <label className="font-bold py-2">
+              Employer Message (Optional - For personalizing quote template)
+            </label>
+            <textarea
+              value={quote.employer_message || ""}
+              onChange={(e) =>
+                setQuote({ ...quote, employer_message: e.target.value })
+              }
+              placeholder="Add a personalized message to the client..."
+              className="w-full border border-gray-400 rounded px-3 py-2 shadow-sm focus:ring-1 focus:ring-green-500 min-h-[120px] resize-none overflow-y-auto"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              This message will appear in the quote template when sending to client.
+            </p>
           </div>
             {/* Services Table */}
             <div className="overflow-x-auto mt-4 rounded-t-lg">
@@ -413,7 +437,7 @@ export default function EmployeeQuotePage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {quote.services.map((s, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
+                    <tr key={`service ${i}`} className="hover:bg-gray-50">
                       <td className="border px-4 py-2">{s.label}</td>
                       <td className="border px-4 py-2 text-right">
                         <input
@@ -445,18 +469,17 @@ export default function EmployeeQuotePage() {
                   <div className="flex flex-wrap gap-2">
                       {quote.images && quote?.images.map((img, i) => {
                         return (
-                          <>
-                            <button
-                              onClick={() => quote.images && openImage(quote.images[i].url!)}
-                              className="w-15 h-15 overflow-hidden rounded-lg border cursor-pointer group hover:border-green-900"
-                            >
-                              <img
-                                src={img.url}
-                                alt={`Service image ${i + 1}`}
-                                className="w-full h-full object-cover transition-transform duration-200 hover:border-green-700 group-hover:scale-120"
-                              />
-                            </button>
-                          </>
+                          <button
+                            key={`img ${i}`}
+                            onClick={() => quote.images && openImage(quote.images[i].url!)}
+                            className="w-15 h-15 overflow-hidden rounded-lg border cursor-pointer group hover:border-green-900"
+                          >
+                            <img
+                              src={img.url}
+                              alt={`Service image ${i + 1}`}
+                              className="w-full h-full object-cover transition-transform duration-200 hover:border-green-700 group-hover:scale-120"
+                            />
+                          </button>
                         )
                       })
                       }

@@ -15,6 +15,7 @@ export { default as HeaderContainer } from "./HeaderContainer";
 export { default as ContactInfoForm } from "./contactforms/ContactInfoForm";
 export { default as TotalsBox } from "./datasections/TotalsBox";
 export { default as QuoteHeader } from "./headers/QuoteHeader";
+export { default as QuoteCountdown } from "./QuoteCountdown";
 export { default as QuoteServicesTable } from "./quotes/QuoteServicesTable";
 export { default as StatusControls } from "./statuscontrol/StatusControls";
 export { default as Header } from "./headers/Header";  // <- explicit default import

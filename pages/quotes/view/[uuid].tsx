@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { formatFullName, formatPrettyDate } from "@/utils/utils";
-import { QuoteImageModal } from "../../../components";
+import QuoteCountdown from "@/components/QuoteCountdown"
 import { useUI } from "../../../context/UIContext"
 
 type Service = {
@@ -119,6 +119,25 @@ export default function QuoteView() {
     fetchQuote();
   }, [router.isReady, uuid, token]);
 
+  const handleAutoExpire = async () => {
+    if (!quote || quote.status !== "sent") return;
+
+    try {
+      const res = await fetch(`/api/quotes/public/customer/auto-expire/uuid/${quote.uuid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data?.quote) {
+        setQuote(data.quote);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   // Accept / Reject handler
   const handleQuoteAction = async (action: "accept" | "reject") => {
     if (!quote || quote.limited || isResponded) return; // disabled for limited or already responded quotes
@@ -144,11 +163,14 @@ export default function QuoteView() {
         alert(data.error || "Something went wrong");
         return;
       }
-      setQuote({
-        ...quote,
-        status: action === "accept" ? "accepted" : "rejected",
-        responded_at: new Date().toISOString(),
-      });
+
+      console.log(data.quote, " quote")
+      setQuote(data.quote);
+      // setQuote({
+      //   ...quote,
+      //   status: action === "accept" ? "accepted" : "rejected",
+      //   responded_at: new Date().toISOString(),
+      // });
     } catch (err) {
       console.error(err);
       alert("Request failed. Try again.");
@@ -220,6 +242,12 @@ export default function QuoteView() {
 
         <div className="relative flex flex-col max-w-5xl p-6">
           {/* Show status */}
+          <div className="flex flex-row justify-end">
+            <QuoteCountdown
+              expiryDate={quote.expiry_end && quote?.expiry_end}
+              onExpire={handleAutoExpire}
+            />
+          </div>
           <div className="mb-4 space-y-2">
             <h2 className="text-2xl font-bold pt-2">Quote Details</h2>
             <p className="text-md mb-1 font-semibold">Quote ID: {quote.uuid}</p>
@@ -366,7 +394,7 @@ export default function QuoteView() {
               </button>
 
               {/* REJECT */}
-              <button
+              {/* <button
                 onClick={() => handleQuoteAction("reject")}
                 disabled={loadingAction === "accept"}
                 className={`px-6 py-3 rounded-lg flex items-center justify-center gap-2 font-semibold transition ${
@@ -385,7 +413,7 @@ export default function QuoteView() {
                 ) : (
                   "Reject"
                 )}
-              </button>
+              </button> */}
             </div>
           )}
         </div>

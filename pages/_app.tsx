@@ -28,7 +28,10 @@ function GlobalImageModal() {
       <img
         src={activeImage}
         alt="Full size"
-        className="max-w-[95vw] max-h-[90vh] rounded-lg"
+        className="w-auto h-auto
+              max-w-[90vw] max-h-[90vh]
+              md:w-full md:h-full
+              object-contain rounded-lg"
         onClick={(e) => e.stopPropagation()}
       />
     </div>
