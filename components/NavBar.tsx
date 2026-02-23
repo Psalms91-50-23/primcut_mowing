@@ -69,7 +69,11 @@ const NavBar = () => {
     <nav className="fixed top-0 flex w-full justify-between items-center p-6 bg-green-900 text-white z-50 shadow-md max-w-[1600px]"
     ref={navRef}
     >
-      <h1 className="flex font-bold text-xl m-0 p-0 items-center"><span className="text-3xl m-0 p-0 translate-x-2">H</span><span className="font-bold text-3xl m-0 p-0 "><img src="/images/seedream-image.png" alt="Happy Logo" className="blockw-16 h-16 ml-1" /></span><span className="font-bold text-3xl m-0 p-0">ppy Lawns</span></h1>
+      <h1 className="flex font-bold text-xl m-0 p-0 items-center"><span className="text-3xl m-0 p-0 translate-x-2">H</span>
+          <img src="/images/happy-house-1.png" alt="Happy Logo" className="block w-14 h-12 pl-2" />
+        {/* <span className="font-bold text-3xl m-0 p-0 ">
+        </span> */}
+        <span className="font-bold text-3xl m-0 p-0">ppy Property</span></h1>
 
       {/* Desktop Menu */}
       {!isMobile && (

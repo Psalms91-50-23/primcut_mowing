@@ -7,11 +7,11 @@ const QuoteHeader: React.FC<QuoteHeaderProps> = ({ quoteUuid, expiry }) => (
     <h1 className="flex items-center font-bold m-0 p-0 text-xl sm:text-2xl md:text-3xl">
       <span className="text-2xl sm:text-3xl md:text-4xl translate-x-1">H</span>
       <img
-        src="/images/seedream-image.png"
+        src="/images/happy-house-1.png"
         alt="Happy Logo"
         className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 mx-1"
       />
-      <span className="text-xl sm:text-2xl md:text-3xl">ppy Lawns</span>
+      <span className="text-xl sm:text-2xl md:text-3xl">ppy Property</span>
     </h1>
     <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
       <span className="text-sm">Date: {new Date().toLocaleDateString()}</span>

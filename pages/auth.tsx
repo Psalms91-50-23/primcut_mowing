@@ -95,12 +95,12 @@ export default function AuthPage() {
           <span className="text-3xl sm:text-4xl translate-x-1">H</span>
           <span className="ml-1">
             <img
-              src="/images/seedream-image.png"
+              src="/images/happy-house-1.png"
               alt="Happy Logo"
               className="w-10 h-10 sm:w-12 sm:h-12 inline-block"
             />
           </span>
-          <span className="text-3xl sm:text-4xl ml-1">ppy Lawns</span>
+          <span className="text-3xl sm:text-4xl ">ppy Property</span>
         </h1>
       </div>
 

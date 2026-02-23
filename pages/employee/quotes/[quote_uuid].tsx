@@ -89,7 +89,7 @@ export default function EmployeeQuotePage() {
         );
         const gst = subtotal * GST_RATE;
         const total = subtotal + gst;
-        console.log({quoteData})
+        // console.log({quoteData})
         setQuote({
           ...quoteData,
           services,
@@ -238,7 +238,7 @@ export default function EmployeeQuotePage() {
   const alreadySent = quote.quote_sent_at
   ? new Date(quote.quote_sent_at).toLocaleString()
   : null;
-  console.log({quote})
+  // console.log({quote})
   if (alreadySent) {
     return (
     <div className="relative flex flex-col items-center justify-center  p-4" 
