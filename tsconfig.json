@@ -32,6 +32,6 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     "types/**/*.d.ts"
-, "hooks/useMediaQuery.tsx"  ],
+, "hooks/useMediaQuery.tsx", "pages/services/weed-spraying"  ],
   "exclude": ["node_modules"]
 }

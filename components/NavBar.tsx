@@ -133,7 +133,7 @@ const NavBar = () => {
 
       {/* Mobile Menu Button */}
       {isMobile && (
-        <button type="button" onClick={() => setMenuOpen(true)} className="text-white text-3xl">
+        <button type="button" onClick={() => setMenuOpen(true)} className="text-white text-3xl hover:cursor-pointer">
           ☰
         </button>
       )}
@@ -147,10 +147,10 @@ const NavBar = () => {
       >
         <div className="flex justify-between items-center p-4 border-b border-green-600">
           <div className="flex flex-col">
-            <h1 className="flex font-bold text-xl m-0 p-0 items-center"><span className="text-3xl m-0 p-0 translate-x-2">H</span><span className="font-bold text-3xl m-0 p-0 "><img src="/images/seedream-image.png" alt="Happy Logo" className="w-12 h-12 inline-block ml-1" /></span><span className="font-bold text-3xl m-0 p-0">ppy Lawns</span></h1>
+            <h1 className="flex font-bold text-xl m-0 p-0 items-center"><span className="text-3xl m-0 p-0 translate-x-2">H</span><span className="font-bold text-3xl m-0 p-0 "><img src="/images/happy-house-1.png" alt="Happy Property Logo" className="w-12 h-12 inline-block ml-1" /></span><span className="font-bold text-3xl m-0 p-0">ppy Property</span></h1>
             <h2 className="text-xl font-bold pt-5">Menu</h2>
           </div>
-          <button type="button" onClick={() => setMenuOpen(false)} className="text-3xl leading-none">
+          <button type="button" onClick={() => setMenuOpen(false)} className="text-3xl leading-none hover:cursor-pointer">
             ✕
           </button>
         </div>
