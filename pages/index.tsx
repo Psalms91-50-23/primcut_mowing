@@ -63,21 +63,20 @@ const Home: React.FC<Props> = () => {
       <header className="relative w-full h-auto overflow-hidden group py-3 md:h-[950px]">
         <div
           className="absolute inset-0 bg-cover bg-center opacity-80 transition-opacity duration-300 
-               group-hover:opacity-100 sm:opacity-60 sm:group-hover:opacity-90 
+               group-hover:opacity-100 sm:opacity-60 sm:group-hover:opacity-80 
                opacity-0 bg-slide-left"
-          style={{ backgroundImage: "url('/images/emoji_mowing_lawn_1.png')" }}
+          style={{ backgroundImage: "url('/images/emoji-landing-page.png')" }}
         ></div>
-        <div className="absolute inset-0 bg-black/20 transition-opacity duration-300 group-hover:bg-black/10 sm:bg-black/40 sm:group-hover:bg-black/20"></div>
+        <div className="absolute inset-0 bg-black/20 transition-opacity duration-300 group-hover:bg-black/10 sm:bg-black/50 sm:group-hover:bg-black/30"></div>
         <div className="relative z-10 flex flex-col justify-center items-center h-full text-center text-white px-4 opacity-0 text-slide-right">
-          <h2 className="text-4xl p-5 md:text-6xl font-bold">
-            Your Lawn, Our Passion
-          </h2>
+          <p className="text-2xl p-5 md:text-4xl font-bold">
+           Happy Property — where care, quality, and reliability meet.
+          </p>
           <p className="text-lg p-4 md:text-2xl font-semibold">
-            Expert lawn mowing, efficient rubbish removal, and reliable property
-            maintenance to keep your home looking its absolute best.
+            Take back your weekends and leave the hard work to us. After a long day, relax knowing your property is in safe, professional hands.
           </p>
           <Link href="/contact">
-            <button className="bg-green-700 text-white px-6 py-3 rounded hover:bg-green-800 transition hover:cursor-pointer hover:font-bold">
+            <button className="bg-green-700 text-white mt-5 px-6 py-3 rounded hover:bg-green-800 transition hover:cursor-pointer hover:font-bold">
               Get a Free Quote
             </button>
           </Link>
@@ -105,10 +104,10 @@ const Home: React.FC<Props> = () => {
             <h4 className="font-semibold mb-2 text-xl">Weed Spraying</h4>
             <p>Keep your garden and lawn weed-free with safe and effective spraying.</p>
           </div>
-          <div className="p-6 border rounded shadow hover:shadow-lg transition">
+          {/* <div className="p-6 border rounded shadow hover:shadow-lg transition">
             <h4 className="font-semibold mb-2 text-xl">Weed Eating</h4>
             <p>Trim and tidy hard-to-reach areas for a neat, manicured look.</p>
-          </div>
+          </div> */}
           <div className="p-6 border rounded shadow hover:shadow-lg transition">
             <h4 className="font-semibold mb-2 text-xl">Rubbish Collecting</h4>
             <p>We remove garden debris, old furniture, and unwanted items responsibly.</p>

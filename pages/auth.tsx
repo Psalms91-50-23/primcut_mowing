@@ -96,7 +96,7 @@ export default function AuthPage() {
           <span className="ml-1">
             <img
               src="/images/happy-house-1.png"
-              alt="Happy Logo"
+              alt="Happy Property Logo"
               className="w-10 h-10 sm:w-12 sm:h-12 inline-block"
             />
           </span>
