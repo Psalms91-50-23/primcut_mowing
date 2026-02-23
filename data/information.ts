@@ -26,7 +26,7 @@ export const data = {
       slug: "weed-spraying",
       imgSrc: `/images/weed_spraying.jpg`,
       title: "Weed Spraying",
-      priceLabel: "From $40", // change if needed
+      priceLabel: "From $40", 
       priceNote: "Price varies based on area size and weed type.",
       descriptionHook:
         "Keep your lawn and garden weed-free with safe and effective spraying.",
@@ -37,7 +37,7 @@ export const data = {
       slug: "junk-removal",
       imgSrc: `/images/rubbish_collecting.jpg`,
       title: "Junk/Furniture Collecting",
-      priceLabel: "From $50", // adjust if needed
+      priceLabel: "From $50", 
       priceNote: "Depends on load size and disposal requirements.",
       descriptionHook:
         "Responsible removal of garden debris, old furniture, and unwanted items.",

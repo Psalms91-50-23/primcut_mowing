@@ -87,7 +87,7 @@ const Home: React.FC<Props> = () => {
         <h3 className="text-3xl md:text-4xl font-bold mb-10 text-center">
           Our Services
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-center">
           <div className="p-6 border rounded shadow hover:shadow-lg transition">
             <h4 className="font-semibold mb-2 text-xl">Property Maintenance</h4>
             <p>
