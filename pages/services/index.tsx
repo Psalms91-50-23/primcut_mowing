@@ -24,7 +24,7 @@ export default function ServicePage(props: Props) {
           Our Services
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-center">
           {data.services.map((service, index) => (
             <ServiceCard
               key={service.slug ?? index}
