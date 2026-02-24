@@ -261,7 +261,7 @@ export default function EmployeeQuotePage() {
 
       {/* Content */}
       <div className="relative bg-white p-8 rounded-xl shadow-xl text-center max-w-md w-full">
-        <h2 className="text-xl font-bold mb-4 text-green-900">
+        <h2 className="text-1xl font-bold mb-4 text-green-900">
           Quote Sent
         </h2>
         <p className="mb-4 text-gray-700">
@@ -301,20 +301,73 @@ export default function EmployeeQuotePage() {
       <div className="absolute inset-0 bg-black/25 z-0"></div>
       {/* Main content */}
       <div className="relative z-10 flex flex-col items-center py-10 px-3">
-          <div className="w-full max-w-4xl bg-green-900 rounded-t-3xl shadow-md p-4 flex justify-between items-center">
-            <h1 className="flex items-center font-bold text-white text-2xl sm:text-3xl">
-              <span className="text-3xl m-0 p-0 translate-x-2">H</span>
-              <img
-                src="/images/seedream-image.png"
-                alt="Happy Lawns Logo"
-                className="w-10 h-10"
-              />
-              <span className="font-bold text-3xl m-0 p-0">ppy Lawns</span>
-            </h1>
-            <div className="text-white text-sm">
-              {expiryDate && <span>Expiry Date: {expiryDate.toLocaleDateString()}</span>}
+        <div
+  className="w-full max-w-4xl bg-green-900 rounded-t-3xl shadow-md p-4
+             flex flex-col sm:flex-row sm:items-center"
+>
+  {/* Left Side */}
+  <div className="flex sm:flex-1 w-full">
+    <h1 className="flex items-center font-bold text-white text-2xl sm:text-2xl">
+      <span className="text-3xl m-0 p-0 translate-x-2 sm:text-4xl">H</span>
+      <img
+        src="/images/happy-house-1.png"
+        alt="Happy Property Logo"
+        className="w-12 h-12 pl-2 sm:w-14 sm:h-14"
+      />
+      <span className="font-bold text-3xl m-0 p-0 sm:text-4xl">
+        ppy Property
+      </span>
+    </h1>
+  </div>
+
+  {/* Right Side */}
+  {expiryDate && (
+    <div className="w-full flex justify-end mt-2 sm:mt-0 sm:flex-1 sm:justify-end">
+      <span className="text-white text-base sm:text-xl">
+        Expiry Date: {expiryDate.toLocaleDateString()}
+      </span>
+    </div>
+  )}
+</div>
+       {/* <div className="w-full max-w-4xl bg-green-900 rounded-t-3xl shadow-md p-4 
+                flex flex-col sm:flex-row sm:justify-between sm:items-center">
+
+        <div className="flex flex-1">
+          <h1 className="flex items-center font-bold text-white text-2xl sm:text-2xl">
+            <span className="text-2xl m-0 p-0 translate-x-2 sm:text-3xl">H</span>
+            <img
+              src="/images/happy-house-1.png"
+              alt="Happy Property Logo"
+              className="w-12 h-12 pl-2 sm:w-14 sm:h-14"
+            />
+            <span className="font-bold text-2xl m-0 p-0 sm:text-3xl">
+              ppy Lawns
+            </span>
+          </h1>
+
+        </div>
+          {expiryDate && (
+            <div className="w-full flex justify-end mt-2 sm:flex-1 sm:mt-0 sm:w-auto sm:block">
+              <span className="text-white text-base sm:text-xl">
+                Expiry Date: {expiryDate.toLocaleDateString()}
+              </span>
             </div>
-          </div>
+          )}
+        </div> */}
+          {/* <div className="w-full max-w-4xl bg-green-900 rounded-t-3xl shadow-md p-4 flex justify-between items-center">
+            <h1 className="flex items-center font-bold text-white text-2xl sm:text-2xl">
+              <span className="text-base m-0 p-0 translate-x-2 sm:text-3xl">H</span>
+              <img
+                src="/images/happy-house-1.png"
+                alt="Happy Property Logo"
+                className="w-11 h-11 pl-2 sm:w-14 sm:h-14"
+              />
+              <span className="font-bold text-base m-0 p-0 sm:text-3xl">ppy Lawns</span>
+            </h1>
+            <div>
+              {expiryDate && <span className="text-white text-xs sm:text-1xl">Expiry Date: {expiryDate.toLocaleDateString()}</span>}
+            </div>
+          </div> */}
         <div className="w-full max-w-4xl bg-white/95 shadow-2xl rounded-b-3xl p-3 sm:p-10 backdrop-blur-sm">
           {/* Header */}
         <div className="">
@@ -374,8 +427,8 @@ export default function EmployeeQuotePage() {
               </div>
               {/* Expiry & Status */}
               <div className="flex flex-col sm:flex-row sm:gap-4 w-full mt-4">
-                {/* Expiry */}
-                <label className="flex flex-col flex-1 min-w-0">
+              <div className="flex flex-col flex-1 min-w-0">
+                <label className="flex flex-col w-full">
                   <span className="font-bold py-2">Extend Expiry Date</span>
                   <input
                     type="date"
@@ -384,27 +437,35 @@ export default function EmployeeQuotePage() {
                     onChange={(e) => setNewExpiry(e.target.value)}
                   />
                 </label>
-                {/* Status */}
-                {/* <label className="flex flex-col flex-1 min-w-0">
-                  <span className="font-bold py-2">Quote Status</span>
-                  <select
-                    value={quote.status}
-                    onChange={(e) => setQuote({ ...quote, status: e.target.value })}
-                    className="w-full border-2 border-gray-400 rounded px-3  h-11 appearance-none shadow-sm focus:ring-1 focus:ring-green-500 cursor-pointer"
-                  >
-                    <option value="draft">Draft</option>
-                    <option value="sent">Sent</option>
-                    <option value="accepted">Accepted</option>
-                    <option value="expired">Expired</option>
-                  </select>
-                </label> */}
               </div>
+
+              {/* Status */}
               <div className="flex flex-col flex-1 min-w-0">
                 <span className="font-bold py-2">Quote Status</span>
                 <div className="w-full border-2 border-gray-400 rounded px-3 h-11 flex items-center bg-gray-100">
                   {quote.status}
                 </div>
               </div>
+            </div>
+              {/* <div className="flex flex-col sm:flex-row sm:gap-4 w-full mt-4">
+                <div className="">
+                  <label className="flex flex-col flex-1 min-w-0">
+                    <span className="font-bold py-2">Extend Expiry Date</span>
+                    <input
+                      type="date"
+                      value={newExpiry}
+                      className="w-full border border-gray-400 rounded px-3 py-2 shadow-sm focus:ring-1 focus:ring-green-500 cursor-pointer"
+                      onChange={(e) => setNewExpiry(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="font-bold py-2">Quote Status</span>
+                  <div className="w-full border-2 border-gray-400 rounded px-3 h-11 flex items-center bg-gray-100">
+                    {quote.status}
+                  </div>
+                </div>
+              </div> */}
             </div>
           </div>
           {/* Employer Personalization Message */}

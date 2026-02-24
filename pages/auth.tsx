@@ -114,10 +114,10 @@ export default function AuthPage() {
         </h1>
         <p className="text-center text-gray-600 mt-2 text-xs sm:text-sm">
           {mode === "register"
-            ? "Sign up to manage your Happy Lawns account"
+            ? "Sign up to manage your Happy Property's account"
             : mode === "reset"
             ? "Enter your email to reset your password"
-            : "Login to your Happy Lawns account"}
+            : "Login to your Happy Property's account"}
         </p>
       </div>
     </>
