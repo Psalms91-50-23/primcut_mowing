@@ -63,127 +63,90 @@ const Home: React.FC<Props> = () => {
       title: "Property Maintenance",
       href: "/services/property-maintenance",
       icon: "🏠",
-      hook: "Repairs, tidy-ups, end-of-lease prep",
       description:
-        "Licensed Building Practitioners with decades of experience—perfect for rental maintenance and getting properties ready for the next tenant.",
+        "General repairs, end-of-lease preparation, small renovations and property upkeep handled professionally.",
     },
     {
       title: "Lawn Mowing",
       href: "/services/lawn-mowing",
       icon: "🌿",
-      hook: "Clean cuts, sharp edges, fast turnaround",
       description:
-        "Fast and precise mowing for lawns of all sizes, keeping your place looking fresh week to week.",
+        "Clean, sharp mowing for lawns of all sizes. One-off or regular maintenance available.",
     },
     {
       title: "Weed Spraying",
       href: "/services/weed-spraying",
       icon: "🧴",
-      hook: "Safe, effective weed control",
       description:
-        "Keep gardens, paths, and lawns weed-free with careful application and reliable results.",
+        "Safe and effective weed control for gardens, driveways, and property edges.",
     },
     {
       title: "Junk / Furniture Removal",
       href: "/services/junk-removal",
       icon: "🚚",
-      hook: "Old furniture, green waste, general rubbish",
       description:
-        "We remove unwanted items responsibly—great for move-outs, clear-outs, and garden cleanups.",
+        "Responsible removal of unwanted furniture, green waste and general rubbish.",
     },
   ];
 
   return (
     <>
-      <header className="relative w-full h-auto overflow-hidden group py-3 md:h-[950px]">
+      {/* HERO */}
+      <header className="relative w-full h-[750px] md:h-[900px] overflow-hidden">
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-80 transition-opacity duration-300 
-               group-hover:opacity-100 sm:opacity-60 sm:group-hover:opacity-80 
-               opacity-0 bg-slide-left"
+          className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: "url('/images/emoji-landing-page.png')" }}
-        ></div>
-        <div className="absolute inset-0 bg-black/20 transition-opacity duration-300 group-hover:bg-black/10 sm:bg-black/50 sm:group-hover:bg-black/30"></div>
-        <div className="relative z-10 flex flex-col justify-center items-center h-full text-center text-white px-4 opacity-0 text-slide-right">
-          <p className="text-2xl p-5 md:text-4xl font-bold">
-            Happy Property — where care, quality, and reliability meet.
+        />
+        <div className="absolute inset-0 bg-black/50" />
+
+        <div className="relative z-10 flex flex-col justify-center items-center h-full text-center text-white px-6">
+          <h1 className="text-3xl md:text-5xl font-bold leading-tight max-w-4xl">
+            Professional Property Maintenance & Lawn Services
+          </h1>
+
+          <p className="mt-6 text-lg md:text-2xl max-w-3xl">
+            Now taking bookings across Hutt Valley. Reliable service,
+            professional finish, and clear communication every step of the way.
           </p>
-          <p className="text-lg p-4 md:text-2xl font-semibold">
-            Take back your weekends and leave the hard work to us. After a long
-            day, relax knowing your property is in safe, professional hands.
-          </p>
-          <Link href="/contact">
-            <button className="bg-green-700 text-white mt-5 px-6 py-3 rounded hover:bg-green-800 transition hover:cursor-pointer hover:font-bold">
+
+          <div className="mt-8 flex gap-4 flex-wrap justify-center">
+            <Link
+              href="/contact"
+              className="bg-green-700 px-6 py-3 rounded-lg font-semibold hover:bg-green-800 transition"
+            >
               Get a Free Quote
-            </button>
-          </Link>
+            </Link>
+
+            <a
+              href="tel:+64000000000"
+              className="border border-white px-6 py-3 rounded-lg font-semibold hover:bg-white hover:text-black transition"
+            >
+              Call Now
+            </a>
+          </div>
         </div>
       </header>
 
       {/* SERVICES */}
-      <section className="py-16 px-6 md:px-16 bg-white text-black">
+      <section className="py-20 px-6 md:px-16 bg-white text-black">
         <div className="max-w-6xl mx-auto">
-          <h3 className="text-3xl md:text-4xl font-bold mb-3 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
             Our Services
-          </h3>
-          <p className="text-center text-gray-600 mb-10">
-            Click a service to learn more, see examples, and request a quote.
+          </h2>
+          <p className="text-center text-gray-600 mb-12">
+            Quality workmanship. Reliable scheduling. Clear pricing.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {services.map((s) => (
               <Link key={s.href} href={s.href} className="group">
-                <div
-                  className="
-                    relative h-full p-7 rounded-2xl border border-gray-200 bg-white
-                    shadow-sm transition
-                    hover:-translate-y-1 hover:shadow-xl
-                    hover:border-green-300 hover:ring-2 hover:ring-green-200
-                    focus:outline-none focus:ring-2 focus:ring-green-300
-                  "
-                >
-                  {/* subtle top gradient strip */}
-                  <div className="absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-gradient-to-r from-green-700 via-green-500 to-green-300" />
-
-                  <div className="flex items-start gap-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-green-50 border border-green-100 text-2xl">
-                      {s.icon}
-                    </div>
-
-                    <div className="flex-1 text-left">
-                      <div className="flex items-center justify-between gap-3">
-                        <h4 className="font-bold text-xl text-gray-900">
-                          {s.title}
-                        </h4>
-                        <span className="text-green-700 font-semibold opacity-0 translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0">
-                          Learn more →
-                        </span>
-                      </div>
-
-                      <p className="mt-1 text-sm font-semibold text-green-800">
-                        {s.hook}
-                      </p>
-                      <p className="mt-3 text-gray-700 leading-relaxed">
-                        {s.description}
-                      </p>
-
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-semibold">
-                          Fast quotes
-                        </span>
-                        <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-semibold">
-                          Reliable scheduling
-                        </span>
-                        <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-semibold">
-                          Professional finish
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* hover overlay glow */}
-                  <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition">
-                    <div className="absolute -inset-8 bg-green-200/20 blur-2xl rounded-full" />
-                  </div>
+                <div className="p-8 rounded-2xl border bg-white shadow-sm hover:shadow-xl hover:-translate-y-1 transition">
+                  <div className="text-3xl mb-4">{s.icon}</div>
+                  <h3 className="text-xl font-bold mb-3">{s.title}</h3>
+                  <p className="text-gray-700 mb-6">{s.description}</p>
+                  <span className="text-green-700 font-semibold group-hover:underline">
+                    Learn more →
+                  </span>
                 </div>
               </Link>
             ))}
@@ -191,42 +154,116 @@ const Home: React.FC<Props> = () => {
         </div>
       </section>
 
-      <section className="py-16 px-6 md:px-16 bg-green-50 text-black text-center">
-        <h3 className="text-3xl md:text-4xl font-bold mb-4">Why Choose Us?</h3>
-        <p className="text-lg md:text-xl">
-          Experienced, reliable, and committed to keeping your yard looking its
-          best.
-        </p>
+      {/* HOW IT WORKS */}
+      <section className="py-20 px-6 md:px-16 bg-gray-50 text-black">
+        <div className="max-w-6xl mx-auto text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-12">
+            Simple & Stress-Free Process
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                step: "1",
+                title: "Request a Quote",
+                desc: "Tell us what you need. Photos help us quote faster.",
+              },
+              {
+                step: "2",
+                title: "Confirm Details",
+                desc: "We’ll confirm pricing and book a time that suits you.",
+              },
+              {
+                step: "3",
+                title: "Job Completed",
+                desc: "Professional finish and tidy clean-up guaranteed.",
+              },
+            ].map((item) => (
+              <div key={item.step} className="p-8 bg-white rounded-2xl border shadow-sm">
+                <div className="w-10 h-10 bg-green-700 text-white rounded-full flex items-center justify-center font-bold mx-auto">
+                  {item.step}
+                </div>
+                <h4 className="mt-4 text-xl font-bold">{item.title}</h4>
+                <p className="mt-3 text-gray-700">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
-      <section className="flex flex-col py-16 px-6 md:px-16 bg-white text-black text-center">
-        <div className="mb-10">
-          <h3 className="text-3xl md:text-4xl font-bold mb-6">Areas We Cover</h3>
-          <p className="text-lg md:text-xl">
-            We proudly serve suburbs across Hutt Valley, including:
+      {/* ABOUT / TRUST */}
+      <section className="py-20 px-6 md:px-16 bg-white text-black">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-6">
+            Built on Reliability & Professionalism
+          </h2>
+
+          <p className="text-lg text-gray-700 leading-relaxed">
+            Happy Property is built on a simple principle — treat every property
+            with care and every client with respect. We are currently expanding
+            and welcoming new clients across Hutt Valley.
+          </p>
+
+          <p className="mt-6 text-lg text-gray-700 leading-relaxed">
+            Our focus is long-term relationships, consistent quality, and
+            dependable service you can rely on.
           </p>
         </div>
+      </section>
 
-        <div
-          ref={gridRef}
-          className="grid grid-cols-2 gap-2 justify-items-center mx-auto w-full sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 px-2"
-        >
-          {areas.map((area, index) => (
-            <div
-              key={area}
-              className={`area-item opacity-0 transform transition-all duration-700 ${
-                visibleItems[index]
-                  ? "opacity-100 translate-y-0"
-                  : "translate-y-5"
-              }`}
-            >
-              <span className="px-3 py-2 rounded-full bg-green-100 text-green-800 font-medium shadow hover:shadow-lg transition text-center block">
-                {area}
-              </span>
-            </div>
-          ))}
+      {/* AREAS */}
+      <section className="py-20 px-6 md:px-16 bg-green-50 text-black text-center">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-3xl md:text-4xl font-bold mb-6">
+            Areas We Cover
+          </h2>
+          <p className="mb-10 text-gray-700">
+            Servicing suburbs across Lower Hutt and Upper Hutt.
+          </p>
+
+          <div
+            ref={gridRef}
+            className="grid grid-cols-2 md:grid-cols-4 gap-4 justify-items-center"
+          >
+            {areas.map((area, index) => (
+              <div
+                key={area}
+                className={`area-item opacity-0 transform transition-all duration-700 ${
+                  visibleItems[index]
+                    ? "opacity-100 translate-y-0"
+                    : "translate-y-5"
+                }`}
+              >
+                <span className="px-4 py-2 rounded-full bg-white shadow text-green-800 font-medium">
+                  {area}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
+
+      {/* CTA */}
+      <section className="py-20 px-6 bg-gray-900 text-white text-center">
+        <h2 className="text-3xl md:text-4xl font-bold">
+          Ready to Get Started?
+        </h2>
+        <p className="mt-4 text-lg text-white/80">
+          Request a free quote today and let’s take care of your property.
+        </p>
+
+        <Link
+          href="/contact"
+          className="inline-block mt-8 bg-green-700 px-8 py-4 rounded-lg font-semibold hover:bg-green-800 transition"
+        >
+          Request a Free Quote
+        </Link>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="bg-green-900 text-white py-10 text-center text-sm">
+        © {new Date().getFullYear()} Happy Property. All rights reserved.
+      </footer>
     </>
   );
 };
