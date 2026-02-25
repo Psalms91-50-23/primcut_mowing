@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserType | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const router = useRouter();
+
   
   /**
    * Fetch current user from backend.
@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setRole(null);
         return;
       }
-      console.log({json})
+      // console.log({json})
       setUser(json.user);
       const userRole = json.user?.role ?? null;
       setRole(userRole);

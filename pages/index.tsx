@@ -89,9 +89,7 @@ const Home: React.FC<Props> = () => {
         "Responsible removal of unwanted furniture, green waste and general rubbish.",
     },
   ];
-// console.log("/images/emoji-landing-page-building.png")
-// console.log("/images/emoji-landing-page-paint.png")
-// console.log("/images/emoji-landing-page-mowing.png")
+
   return (
     <>
       {/* HERO */}
@@ -112,7 +110,7 @@ const Home: React.FC<Props> = () => {
               <img
                 src="/images/emoji-landing-page-paint-and-mow.png"
                 alt="Mowing"
-                className="flex flex-1 object-contain"
+                className="flex flex-1 border-b-[3px] border-r-[3px] border-white object-contain"
               />
             </div>
           </div>
@@ -151,7 +149,7 @@ const Home: React.FC<Props> = () => {
 
             <a
               href="tel:+64000000000"
-              className="border border-white px-6 py-3 rounded-lg font-semibold hover:bg-white hover:text-black transition"
+              className="border border-white px-6 py-3 rounded-lg font-semibold hover:bg-white hover:text-black active:bg-white active:text-black transition"
             >
               Call Now
             </a>

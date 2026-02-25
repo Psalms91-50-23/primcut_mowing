@@ -16,12 +16,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         cookie: req.headers.cookie || "", 
       },
     });
-    console.log({backendRes})
     const text = await backendRes.text();
-    console.log({text})
     try {
       const data = JSON.parse(text);
-      console.log({data}, " next js api get me")
       return res.status(backendRes.status).json(data);
     } catch {
       // If backend returned plain text, just forward it
