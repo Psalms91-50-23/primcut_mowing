@@ -28,9 +28,7 @@ const LIBRARIES: Libraries = ["places"];
 export default function ContactPage(props: Props) {
   const apiKey = process.env.NEXT_PUBLIC_PLACES_API;
   const { loading } = useAuth(); // get loading state from 
-  const options = {
-    componentRestrictions: { country: "NZ" } // restrict to New Zealand
-  };
+
   if (!apiKey) {
     throw new Error("NEXT_PUBLIC_PLACES_API is not set");
   }
@@ -109,8 +107,12 @@ export default function ContactPage(props: Props) {
       // );
       const placeAutocomplete = new google.maps.places.PlaceAutocompleteElement({
         componentRestrictions: { country: ["nz"] },
-        requestedRegion: 'nz',
-         // restrict to New Zealand
+        requestedRegion: 'nz', // restrict to New Zealand
+        locationBias: {
+        center: { lat: -41.21, lng: 174.91 }, // Wellington region center
+        radius: 40000, // 40km covers Wellington + Lower Hutt + Upper Hutt
+      },
+         
       });
 
       autocompleteContainerRef.current!.appendChild(placeAutocomplete);
