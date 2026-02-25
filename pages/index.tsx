@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import useMediaQuery from "../hooks/useMediaQuery"
 
 type Props = {};
 
 const Home: React.FC<Props> = () => {
   const gridRef = useRef<HTMLDivElement>(null);
-
+  const isSmall = useMediaQuery("(max-width: 639px)");
   const areas = [
     "Petone",
     "Waiwhetu",
@@ -88,25 +89,56 @@ const Home: React.FC<Props> = () => {
         "Responsible removal of unwanted furniture, green waste and general rubbish.",
     },
   ];
-
+// console.log("/images/emoji-landing-page-building.png")
+// console.log("/images/emoji-landing-page-paint.png")
+// console.log("/images/emoji-landing-page-mowing.png")
   return (
     <>
       {/* HERO */}
-      <header className="relative w-full h-[750px] md:h-[900px] overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url('/images/emoji-landing-page.png')" }}
-        />
-        <div className="absolute inset-0 bg-black/50" />
+      <header className="relative w-full overflow-hidden bg-white group">
+        {/* IMAGE LAYOUT */}
+        {isSmall ? (
+          // < 639px: 2 images stacked
+          <div className="flex flex-col w-full">
+            <div className="flex flex-1 w-full bg-black border-b-[3px] border-white ">
+              <img
+                src="/images/emoji-landing-page-building.png"
+                alt="Building"
+                className="flex flex-1 object-contain"
+              />
+            </div>
 
-        <div className="relative z-10 flex flex-col justify-center items-center h-full text-center text-white px-6">
-          <h1 className="text-3xl md:text-5xl font-bold leading-tight max-w-4xl">
+            <div className="flex flex-1 w-full bg-black">
+              <img
+                src="/images/emoji-landing-page-paint-and-mow.png"
+                alt="Mowing"
+                className="flex flex-1 object-contain"
+              />
+            </div>
+          </div>
+        ) : (
+          // >= 640px: 1 combined image
+          <div className="w-full bg-black aspect-[16/9]">
+            <img
+              src="/images/emoji-landing-page.png"
+              alt="Hero"
+              className="w-full h-full object-contain"
+            />
+          </div>
+        )}
+
+        {/* OVERLAY (lighter on hover) */}
+        <div className="absolute inset-0 bg-black/50 group-hover:bg-black/30 transition-colors duration-300" />
+
+        {/* TEXT */}
+        <div className="absolute inset-0 z-10 flex flex-col justify-start sm:justify-center items-center text-center text-white px-6 pt-10 sm:pt-0">
+          <h1 className="text-2xl md:text-5xl font-bold leading-tight max-w-4xl">
             Professional Property Maintenance & Lawn Services
           </h1>
 
           <p className="mt-6 text-lg md:text-2xl max-w-3xl">
-            Now taking bookings across Hutt Valley. Reliable service,
-            professional finish, and clear communication every step of the way.
+            Now taking bookings across Hutt Valley. Reliable service, professional
+            finish, and clear communication every step of the way.
           </p>
 
           <div className="mt-8 flex gap-4 flex-wrap justify-center">
@@ -234,7 +266,7 @@ const Home: React.FC<Props> = () => {
                     : "translate-y-5"
                 }`}
               >
-                <span className="px-4 py-2 rounded-full bg-white shadow text-green-800 font-medium">
+                <span className="px-4 py-2 rounded-full bg-white shadow-lg shadow-black/20 text-green-800 font-medium">
                   {area}
                 </span>
               </div>
