@@ -6,7 +6,7 @@ const Header: React.FC = () => (
       <img
         src="/images/happy-house-1.png"
         alt="Happy Logo"
-        className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12"
+        className="ml-1 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12"
       />
       <span className="text-xl sm:text-2xl md:text-3xl">ppy Property</span>
     </h1>

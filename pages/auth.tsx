@@ -375,7 +375,7 @@ export default function AuthPage() {
                     />
                     <button
                       type="button"
-                      className="absolute right-2 top-8 text-gray-500 text-xl"
+                      className="absolute right-2 top-8 text-gray-500 text-xl hover:cursor-pointer"
                       onClick={() => setLoginPasswordVisible(!loginPasswordVisible)}
                     >
                       {loginPasswordVisible ? "🙈" : "👁️"}
@@ -388,7 +388,7 @@ export default function AuthPage() {
                     className={`w-full mt-5 py-2 rounded-md font-bold transition ${
                       isLoggingIn
                         ? "bg-gray-400 text-white"
-                        : "bg-green-900 text-white hover:bg-green-800"
+                        : "bg-green-900 text-white hover:bg-green-800 hover:cursor-pointer"
                     }`}
                   >
                     {isLoggingIn ? "Logging in..." : "Login"}
@@ -398,7 +398,7 @@ export default function AuthPage() {
                     <button
                       type="button"
                       onClick={() => setMode("reset")}
-                      className="text-green-800 font-semibold hover:underline"
+                      className="text-green-800 font-semibold hover:underline hover:cursor-pointer"
                     >
                       Forgot password?
                     </button>
@@ -499,7 +499,7 @@ export default function AuthPage() {
                   <button
                     type="submit"
                     disabled={isRegistering}
-                    className={`w-full mt-5 py-2 rounded-md font-bold transition ${
+                    className={`w-full mt-5 py-2 rounded-md font-bold transition hover:cursor-pointer ${
                       isRegistering
                         ? "bg-gray-400 text-white"
                         : "bg-green-900 text-white hover:bg-green-800"
@@ -536,7 +536,7 @@ export default function AuthPage() {
                   <button
                     type="submit"
                     disabled={isResetting}
-                    className={`w-full mt-5 py-2 rounded-md font-bold transition ${
+                    className={`w-full mt-5 py-2 rounded-md font-bold hover:cursor-pointer transition ${
                       isResetting
                         ? "bg-gray-400 text-white"
                         : "bg-green-900 text-white hover:bg-green-800"
@@ -549,7 +549,7 @@ export default function AuthPage() {
                     <button
                       type="button"
                       onClick={() => setMode("login")}
-                      className="text-green-800 font-semibold hover:underline"
+                      className="text-green-800 font-semibold hover:underline hover:cursor-pointer"
                     >
                       Back to login
                     </button>
@@ -567,7 +567,7 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={() => setMode("login")}
-                  className="text-green-800 font-semibold hover:underline"
+                  className="text-green-800 font-semibold hover:underline hover:cursor-pointer"
                 >
                   Login
                 </button>
@@ -578,7 +578,7 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={() => setMode("register")}
-                  className="text-green-800 font-semibold hover:underline"
+                  className="text-green-800 font-semibold hover:underline hover:cursor-pointer"
                 >
                   Sign up
                 </button>

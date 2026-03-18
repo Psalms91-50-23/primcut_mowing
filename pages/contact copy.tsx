@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLoadScript, type Libraries } from "@react-google-maps/api";
 import { toast } from "react-hot-toast";
-import { useAuth } from "../context/AuthContext"; 
+import { useAuth } from "../context/AuthContext";
 import supabase from "@/config/db";
-import  Header  from "@/components/headers/Header";
+import Header from "@/components/headers/Header";
 
 type Props = {};
 
@@ -26,8 +26,9 @@ type FormDataType = {
 const LIBRARIES: Libraries = ["places"];
 
 export default function ContactPage(props: Props) {
-const apiKey = process.env.NEXT_PUBLIC_PLACES_API;
-const { loading } = useAuth(); // get loading state from 
+  const apiKey = process.env.NEXT_PUBLIC_PLACES_API;
+  const { loading } = useAuth(); // get loading state from 
+
   if (!apiKey) {
     throw new Error("NEXT_PUBLIC_PLACES_API is not set");
   }
@@ -39,7 +40,7 @@ const { loading } = useAuth(); // get loading state from
 
   const autocompleteContainerRef = useRef<HTMLDivElement | null>(null);
   const autocompleteRef = useRef<google.maps.places.PlaceAutocompleteElement | null>(null);
-
+  const [imageInputKey, setImageInputKey] = useState(0);
   const [formData, setFormData] = useState<FormDataType>({
     firstName: "",
     lastName: "",
@@ -91,123 +92,59 @@ const { loading } = useAuth(); // get loading state from
     }));
   };
 
-  // // ---------- NEW AUTOCOMPLETE ----------
-  // useEffect(() => {
-  //   if (!isLoaded) return;
+  useEffect(() => {
+    if (!isLoaded || !autocompleteContainerRef.current || loading) return; // wait for auth
 
-  //   const init = async () => {
-  //     await google.maps.importLibrary("places");
+    const initAutocomplete = async () => {
+      // await google.maps.importLibrary("places");
 
-  //     const placeAutocomplete = new google.maps.places.PlaceAutocompleteElement({});
+      // Clear old element if it exists
+      autocompleteContainerRef.current!.innerHTML = "";
+       // Bounds for all of New Zealand
+      // const nzBounds = new google.maps.LatLngBounds(
+      //   new google.maps.LatLng(-47.3, 166.2), // southwest corner of NZ
+      //   new google.maps.LatLng(-34.4, 178.6)  // northeast corner of NZ
+      // );
+      const placeAutocomplete = new google.maps.places.PlaceAutocompleteElement({
+        componentRestrictions: { country: ["nz"] },
+        requestedRegion: 'nz', // restrict to New Zealand
+        locationBias: {
+        center: { lat: -41.21, lng: 174.91 }, // Wellington region center
+        radius: 40000, // 40km covers Wellington + Lower Hutt + Upper Hutt
+      },
+         
+      });
 
-  //     if (!autocompleteContainerRef.current) return;
-  //     autocompleteContainerRef.current.innerHTML = "";
-  //     autocompleteContainerRef.current.appendChild(placeAutocomplete);
+      autocompleteContainerRef.current!.appendChild(placeAutocomplete);
 
-  //     placeAutocomplete.addEventListener("gmp-select", async ({ placePrediction }: any) => {
-  //     const place = placePrediction.toPlace();
-  //     await place.fetchFields({
-  //       fields: ["displayName", "formattedAddress", "addressComponents"],
-  //     });
+      placeAutocomplete.addEventListener(
+        "gmp-select",
+        async ({ placePrediction }: any) => {
+          const place = placePrediction.toPlace();
+          await place.fetchFields({
+            fields: ["formattedAddress", "addressComponents"],
+          });
 
-  //     const address =
-  //       place.formattedAddress || place.displayName || placePrediction.description || "";
+          const address =
+            place.formattedAddress || place.displayName || placePrediction.description || "";
 
-  //     const postcodeComponent =
-  //       place.addressComponents?.find((c: any) =>
-  //         c.types?.includes("postal_code")
-  //       ) || null;
+          const postcodeComponent = place.addressComponents?.find((c: any) =>
+            c.types?.includes("postal_code")
+          );
 
-  //     const postcode = postcodeComponent?.longName || "";
+          const postcode = postcodeComponent?.longName || "";
 
-  //     // Append postcode to address if it exists
-  //     const fullAddress = postcode ? `${address} ${postcode}` : address;
+          const fullAddress = postcode ? `${address} ${postcode}` : address;
 
-  //     setFormData(prev => ({ ...prev, address: fullAddress }));
-  //     });
+          setFormData(prev => ({ ...prev, address: fullAddress }));
+        }
+      );
 
-  //     autocompleteRef.current = placeAutocomplete;
-  //   };
+      autocompleteRef.current = placeAutocomplete;
+    };
 
-  //   init();
-  // }, [isLoaded]);
-
-
-useEffect(() => {
-  if (!isLoaded || !autocompleteContainerRef.current || loading) return; // wait for auth
-
-  const initAutocomplete = async () => {
-    await google.maps.importLibrary("places");
-
-    // Clear old element if it exists
-    autocompleteContainerRef.current!.innerHTML = "";
-
-    const placeAutocomplete = new google.maps.places.PlaceAutocompleteElement({});
-
-    autocompleteContainerRef.current!.appendChild(placeAutocomplete);
-
-    placeAutocomplete.addEventListener(
-      "gmp-select",
-      async ({ placePrediction }: any) => {
-        const place = placePrediction.toPlace();
-        await place.fetchFields({
-          fields: ["formattedAddress", "addressComponents"],
-        });
-
-        const address =
-          place.formattedAddress || place.displayName || placePrediction.description || "";
-
-        const postcodeComponent = place.addressComponents?.find((c: any) =>
-          c.types?.includes("postal_code")
-        );
-
-        const postcode = postcodeComponent?.longName || "";
-
-        const fullAddress = postcode ? `${address} ${postcode}` : address;
-
-        setFormData(prev => ({ ...prev, address: fullAddress }));
-      }
-    );
-
-    autocompleteRef.current = placeAutocomplete;
-  };
-
-  initAutocomplete();
-}, [isLoaded, loading]);
-
-
-//   useEffect(() => {
-//   if (!isLoaded || !autocompleteContainerRef.current) return;
-
-//   const input = document.createElement("input");
-//   input.type = "text";
-//   input.placeholder = "Enter your address";
-//   input.className = "input-border w-full border px-3 py-2 rounded";
-
-//   autocompleteContainerRef.current.innerHTML = "";
-//   autocompleteContainerRef.current.appendChild(input);
-
-//   const autocomplete = new google.maps.places.Autocomplete(input, {
-//     fields: ["formatted_address", "address_components", "geometry"],
-//   });
-
-//   autocomplete.addListener("place_changed", () => {
-//     const place = autocomplete.getPlace();
-
-//     const address = place.formatted_address || "";
-
-//     const postcodeComponent = place.address_components?.find(c =>
-//       c.types?.includes("postal_code")
-//     );
-
-//     const postcode = postcodeComponent?.long_name || "";
-
-//     const fullAddress = postcode ? `${address} ${postcode}` : address;
-
-//     setFormData(prev => ({ ...prev, address: fullAddress }));
-//   });
-// }, [isLoaded]);
-
+    initAutocomplete();
+  }, [isLoaded, loading]);
 
   const handleServiceChange = (index: number) => {
     setServices(prev => {
@@ -259,25 +196,25 @@ useEffect(() => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
-   
+
     // Validation
     if (!formData.mobile && !formData.landline) {
-   
+
       alert("Please provide at least one contact number.");
       setIsSubmitting(false);
       return;
     }
-    
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-   
+
       alert("Please enter a valid email address.");
       setIsSubmitting(false);
       return;
     }
 
     if (!formData.address) {
-     
+
       alert("Please enter your address.");
       setIsSubmitting(false);
       return;
@@ -291,14 +228,19 @@ useEffect(() => {
         unit_price: 0,
         quantity: 1,
       }));
-      
-      if (selectedServices.length === 0) {
-      
+
+    if (selectedServices.length === 0) {
       alert("Please select at least one service.");
       setIsSubmitting(false);
       return;
     }
 
+    const hasAtLeastOneImage = imageFiles.some(file => file !== null);
+    if (!hasAtLeastOneImage) {
+      alert("Please upload at least one image before submitting.");
+      setIsSubmitting(false);
+      return;
+    }
     try {
       // 1 Upload images to Supabase
       const uploadedImages = await Promise.all(
@@ -307,7 +249,7 @@ useEffect(() => {
           const fileName = `quotes/${Date.now()}_${file.name}`;
 
           const { data, error } = await supabase.storage
-            .from('quote-images') 
+            .from('quote-images')
             .upload(fileName, file);
 
           if (error) throw error;
@@ -345,7 +287,7 @@ useEffect(() => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      console.log({res})
+      console.log({ res })
       if (res.ok) {
         toast.success("Message sent successfully!");
         // Reset form, previews, and services
@@ -368,10 +310,11 @@ useEffect(() => {
         setImagePreviews([null, null, null, null]);
         setServices(prev => prev.map(s => ({ ...s, selected: false })));
         clearAutocompleteInput();
+        setImageInputKey(prev => prev + 1);
         console.log("before reload")
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500); // optional delay to show toast first
+        // setTimeout(() => {
+        //   window.location.reload();
+        // }, 1500); // optional delay to show toast first
       } else {
         const errorData = await res.json();
         alert(errorData?.error || "Failed to send message. Please try again.");
@@ -384,7 +327,6 @@ useEffect(() => {
     }
   };
 
-  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -394,40 +336,39 @@ useEffect(() => {
   }
   if (loadError) return <div>Map failed to load</div>;
   if (!isLoaded) return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
-      </div>
-    );
+    <div className="flex justify-center items-center h-screen">
+      <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
+    </div>
+  );
 
   return (
-  <div className="relative min-h-screen w-full flex flex-col items-center justify-start text-black pb-5">
-    {/* Background Image */}
-    <div
-      className="absolute inset-0 bg-cover bg-center z-0"
-      style={{ backgroundImage: "url('/images/contact_us_1.png')" }}
-    />
-    {/* Dark overlay */}
-    <div className="absolute inset-0 bg-black/50 z-0"></div>
-
-    {/* Main content wrapper */}
-    <div className="relative z-10 w-full flex flex-col items-center pt-20 px-4">
-      {/* Header text */}
-      <div className="text-center space-y-2 max-w-2xl">
-        <h1 className="text-3xl md:text-4xl font-bold mb-6 text-white">Contact Us</h1>
-        <p className="text-xl italic font-bold md:text-base text-gray-200 mb-4">
-          Our team strives to reply to all messages within 2 business working days.
-        </p>
-        <p className="text-lg font-semibold text-gray-100 pb-6 sm:text-base">
-          For an accurate quote, please send images.
-        </p>
-      </div>
-      <div className="w-full max-w-lg">
-      <Header />
-      </div>
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-start text-black pb-5">
+      {/* Background Image */}
+      <div
+        className="absolute inset-0 bg-cover bg-center z-0"
+        style={{ backgroundImage: "url('/images/contact_us_1.png')" }}
+      />
+      {/* Dark overlay */}
+      <div className="absolute inset-0 bg-black/50 z-0"></div>
+      {/* Main content wrapper */}
+      <div className="relative z-10 w-full flex flex-col items-center pt-20 px-4">
+        {/* Header text */}
+        <div className="text-center space-y-2 max-w-2xl">
+          <h1 className="text-3xl md:text-4xl font-bold mb-6 text-white">Contact Us</h1>
+          <p className="text-xl italic font-bold md:text-base text-gray-200 mb-4">
+            Our team strives to reply to all messages within 2 business working days.
+          </p>
+          <p className="text-lg font-semibold text-gray-100 pb-6 sm:text-base">
+            For an accurate quote, please send images.
+          </p>
+        </div>
+        <div className="w-full max-w-lg">
+          <Header />
+        </div>
         <form
           onSubmit={handleSubmit}
           autoComplete="off"
-          className="w-full max-w-lg bg-white/95  rounded-b-sm shadow space-y-4 pb-5 px-6 pt-5"
+          className="w-full max-w-lg bg-white/85 rounded-b-sm shadow space-y-4 pb-5 px-6 pt-5"
         >
           {/* NAME */}
           <div className="flex flex-row gap-4">
@@ -498,9 +439,8 @@ useEffect(() => {
               </div>
             </div>
             <span className="text-xs italic py-3">
-              Only one contact number is required, but you may add both if you’d like.
+              Only one contact number is required and add area code for landline, but you may add both if you’d like.
             </span>
-
             <div className="relative flex flex-col pt-1">
               <label className="py-2 mb-1">Preferred contact method</label>
               <select
@@ -516,7 +456,6 @@ useEffect(() => {
               </select>
             </div>
           </div>
-
           {/* EMAIL */}
           <div>
             <label htmlFor="email" className="block font-medium mb-1 py-2">
@@ -534,7 +473,6 @@ useEffect(() => {
               required
             />
           </div>
-
           {/* MESSAGE */}
           <div>
             <label htmlFor="message" className="block font-medium mb-1 py-2">
@@ -547,12 +485,11 @@ useEffect(() => {
               value={formData.message}
               onChange={handleChange}
               className="input-border w-full border px-3 py-2 rounded resize-none overflow-y-scroll overflow-x-hidden"
-              placeholder="Write your message"
+              placeholder="Write any additional details here..."
               rows={5}
               required
             />
           </div>
-
           {/* SERVICES */}
           <div className="space-y-2">
             <label className="text-lg py-3">Select Services</label>
@@ -569,7 +506,6 @@ useEffect(() => {
               ))}
             </div>
           </div>
-
           {/* IMAGES */}
           <div className="space-y-4">
             <div className="font-semibold">Upload Images</div>
@@ -583,6 +519,7 @@ useEffect(() => {
                   className="input-border w-full sm:w-1/2 border px-3 py-2 rounded"
                 />
                 <input
+                  key={imageInputKey + index}
                   type="file"
                   accept="image/*"
                   onChange={(e) =>
@@ -591,18 +528,17 @@ useEffect(() => {
                   className="input-border w-full sm:w-1/2 border px-3 py-2 rounded hover:cursor-pointer"
                 />
                 {imagePreviews[index] && (
-                  <div className="w-20 h-14 overflow-hidden rounded bg-gray-100">
+                  <div className="w-20 h-14 overflow-hidden rounded bg-gray-100 py-2">
                     <img
                       src={imagePreviews[index]!}
                       alt={`Preview ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full rounded object-cover"
                     />
                   </div>
                 )}
               </div>
             ))}
           </div>
-
           {/* SUBMIT BUTTON */}
           <div className="py-5">
             <button
@@ -616,8 +552,8 @@ useEffect(() => {
             </button>
           </div>
         </form>
+      </div>
     </div>
-  </div>
   );
 
 }

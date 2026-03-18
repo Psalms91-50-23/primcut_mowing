@@ -1,9 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { quote_uuid } = req.query;
+  const { uuid, action } = req.query;
 
-  if (!quote_uuid || typeof quote_uuid !== "string") {
+  if (!uuid || typeof uuid !== "string") {
     return res.status(400).json({ error: "Quote UUID is required" });
   }
 
@@ -15,33 +15,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     switch (req.method) {
       case "GET":
-        backendRes = await fetch(`${backendURL}/api/quotes/uuid/${quote_uuid}`, {
+        backendRes = await fetch(`${backendURL}/api/quotes/uuid/${uuid}`, {
           method: "GET",
-          headers: { "Content-Type": "application/json", Cookie: cookieHeader },
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: cookieHeader,
+          },
         });
         break;
 
-      case "PATCH":
-        backendRes = await fetch(`${backendURL}/api/quotes/admin/uuid/${quote_uuid}`, {
+      case "PATCH": {
+        const backendPath =
+          action === "send"
+            ? `/api/quotes/employee/uuid/${uuid}`
+            : `/api/quotes/uuid/${uuid}`;
+
+        backendRes = await fetch(`${backendURL}${backendPath}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json", Cookie: cookieHeader },
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: cookieHeader,
+          },
           body: JSON.stringify(req.body),
         });
         break;
+      }
 
-      case "DELETE":
+      case "DELETE": {
         const soft = req.query.soft === "true";
-        backendRes = await fetch(`${backendURL}/api/quotes/uuid/${quote_uuid}?soft=${soft}`, {
+        backendRes = await fetch(`${backendURL}/api/quotes/uuid/${uuid}?soft=${soft}`, {
           method: "DELETE",
-          headers: { "Content-Type": "application/json", Cookie: cookieHeader },
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: cookieHeader,
+          },
         });
         break;
+      }
 
       default:
         return res.status(405).json({ error: "Method Not Allowed" });
     }
+
     const contentType = backendRes.headers.get("content-type") || "";
     let data;
+
     if (contentType.includes("application/json")) {
       data = await backendRes.json();
     } else {
@@ -51,7 +69,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     return res.status(backendRes.status).json(data);
-
   } catch (err: any) {
     console.error("API /quotes/[quote_uuid] error:", err);
     return res.status(500).json({ error: err.message });

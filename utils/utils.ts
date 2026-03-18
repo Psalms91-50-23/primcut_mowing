@@ -173,3 +173,8 @@ export function sanitizeIntegerInput(input: string): number {
   const sanitized = input.replace(/\D/g, ""); // remove non-digits
   return sanitized ? parseInt(sanitized, 10) : 1;
 }
+
+export function getDashboardRole(role?: string) {
+  if (role === "customer") return "customer";
+  return "employee";
+}

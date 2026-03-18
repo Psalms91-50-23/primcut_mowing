@@ -104,7 +104,11 @@ const NavBar = () => {
                 onClick={() => setDropdownOpen(!dropdownOpen)}
                 className="flex items-center gap-3 hover:cursor-pointer"
               >
-                <div className="flex items-center justify-center w-9 h-9 rounded-full border-2 border-white bg-green-900 text-white font-bold text-sm hover:scale-110 transition ease-in-out duration-350">
+                <div 
+                  className="flex items-center justify-center w-9 h-9 rounded-full border-2 border-white bg-green-900 text-white font-bold text-sm hover:scale-110 transition ease-in-out duration-350"
+                  onClick={() =>
+                    router.push(roleRedirectMap[user.role || "customer"])
+                  }>
                   {initials}
                 </div>
                 <span className="text-sm">▼</span>

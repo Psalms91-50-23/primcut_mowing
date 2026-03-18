@@ -14,16 +14,16 @@ export interface SupabaseUser {
   user_metadata: any;
 }
 
-export interface UserType  {
-  // id?: string | number;
+export interface UserType {
   uuid?: string;
   email: string;
+  customer_uuid?: string;
   first_name?: string;
   last_name?: string;
   role: string;
   supabaseUser?: SupabaseUser;
   [key: string]: any;
-};
+}
 
 type AuthContextType = {
   user: UserType | null;
@@ -31,8 +31,12 @@ type AuthContextType = {
   loading: boolean;
   logout: () => Promise<void>;
   hasRole: (roles: string | string[]) => boolean;
-  fetchUser: () => Promise<UserType | undefined>; 
-  login: (email: string, password: string, recaptchaToken: string) => Promise<UserType | undefined>;
+  fetchUser: () => Promise<UserType | null>;
+  login: (
+    email: string,
+    password: string,
+    recaptchaToken: string
+  ) => Promise<UserType | null>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -41,61 +45,56 @@ export const roleRedirectMap: Record<string, string> = {
   owner: "/dashboard/owner",
   admin: "/dashboard/admin",
   employee: "/dashboard/employee",
-  customer: "/customer",
+  customer: "/dashboard/customer",
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserType | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const router = useRouter();
 
-  
-  /**
-   * Fetch current user from backend.
-   * Backend reads HttpOnly cookies and validates tokens.
-   */
-  
-  const fetchUser = async () => {
+  const fetchUser = async (): Promise<UserType | null> => {
+    setLoading(true);
+
     try {
-      const res = await fetch(
-        `/api/users/auth/me`,
-        {
-          method: "GET",
-          credentials: "include", 
-        }
-      );
+      const res = await fetch(`/api/users/auth/me`, {
+        method: "GET",
+        credentials: "include",
+      });
+
       if (!res.ok) {
         setUser(null);
         setRole(null);
-        return;
+        return null;
       }
+
       const json = await res.json();
+
       if (!json?.user) {
         setUser(null);
         setRole(null);
-        return;
+        return null;
       }
-      // console.log({json})
-      setUser(json.user);
-      const userRole = json.user?.role ?? null;
+
+      const fetchedUser = json.user as UserType;
+      const userRole = fetchedUser?.role ?? null;
+
+      setUser(fetchedUser);
       setRole(userRole);
-      
-        // Redirect to role-based dashboard if on "/"
-      // if ( router.pathname === "/" && userRole && roleRedirectMap[userRole]
-      // ) {
-      //      console.log("8")
-      //   router.replace(roleRedirectMap[userRole]);
-      // }
-      // if (router.pathname === "/") {
-      //   const redirectPath = roleRedirectMap[userRole] || "/";
-      //   router.replace(redirectPath);
-      // }
-      return json.user
+
+      if (router.pathname === "/" && userRole && roleRedirectMap[userRole]) {
+        router.replace(roleRedirectMap[userRole]);
+      }
+
+      return fetchedUser;
     } catch (err) {
       console.error("fetchUser failed", err);
       setUser(null);
       setRole(null);
       return null;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -103,7 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     email: string,
     password: string,
     recaptchaToken: string
-  ) => {
+  ): Promise<UserType | null> => {
     const res = await fetch("/api/users/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -112,86 +111,75 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     let data: any = null;
-    console.log({res})
+
     try {
       data = await res.json();
-      console.log({data}, " auth login")
     } catch {
       // backend returned no JSON
     }
 
     if (!res.ok) {
-      throw new Error(
-        data?.error ||
-        data?.message ||
-        "Login failed"
-      );
+      throw new Error(data?.error || data?.message || "Login failed");
     }
 
-    // 🔐 Never trust login response user — always fetch
-    const user = await fetchUser();
-    if (!user) {
+    const fetchedUser = await fetchUser();
+
+    if (!fetchedUser) {
       throw new Error("Login succeeded but user could not be fetched");
     }
 
-    setUser(user);
-    return user;
+    return fetchedUser;
   };
-  /**
-   * Logout user:
-   * Backend clears cookies.
-   * Frontend clears state.
-   */
 
   const logout = async () => {
-
     try {
       await fetch(`/api/users/auth/logout`, {
         method: "POST",
         credentials: "include",
       });
+      router.replace("/auth");
     } catch (err) {
       console.error("logout failed", err);
-         console.log("13")
     } finally {
-         setUser(null);
-        setRole("customer");
+      setUser(null);
+      setRole(null);
+      setLoading(false);
     }
   };
 
-  /**
-   * Check if user has a role or one of multiple roles
-   */
   const hasRole = (roles: string | string[]): boolean => {
     if (!user || !role) return false;
     if (typeof roles === "string") return role === roles;
     return roles.includes(role);
   };
-  // const hasRole = (roles: string | string[]): boolean => {
-  //   if (!user) return false;
-  //   if (typeof roles === "string") return role === roles;
-  //   return roles.includes(role);
-  // };
 
-  /**
-   * On mount, fetch backend auth state
-   */
+  useEffect(() => {
+    const initAuth = async () => {
+      setLoading(true);
 
-    useEffect(() => {
-      const initAuth = async () => {
-        setLoading(true);
-        try {
-          const res = await fetch(`/api/users/auth/check`, { credentials: "include" });
-          const data = await res.json();
-          if (data.loggedIn) await fetchUser();
-        } catch (err) {
-          console.log("Not logged in", err);
-        } finally {
-          setLoading(false);
+      try {
+        const res = await fetch(`/api/users/auth/check`, {
+          credentials: "include",
+        });
+
+        const data = await res.json();
+
+        if (data?.loggedIn) {
+          await fetchUser();
+        } else {
+          setUser(null);
+          setRole(null);
         }
-      };
+      } catch (err) {
+        console.log("Not logged in", err);
+        setUser(null);
+        setRole(null);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      initAuth();
+    initAuth();
   }, []);
 
   return (
@@ -203,7 +191,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         logout,
         hasRole,
         fetchUser,
-        login 
+        login,
       }}
     >
       {children}

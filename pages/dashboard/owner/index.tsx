@@ -1,32 +1,298 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Users, FileText, DollarSign } from "lucide-react";
+import {
+  Calendar,
+  Users,
+  FileText,
+  Search,
+  Send,
+  Settings,
+  AlertTriangle,
+  Clock3,
+  CalendarDays,
+  ArrowRight,
+} from "lucide-react";
 import { useAuth, roleRedirectMap } from "../../../context/AuthContext";
 import { useRouter } from "next/router";
-import { useRoleRedirect } from "@/hooks/useRoleRedirect";
+import { formatFullName, getDashboardRole } from "@/utils/utils";
+import {
+  QuickFindResult,
+  QuickFindType,
+  QuoteSummary,
+  JobSummary,
+  CustomerSummary,
+} from "@/components/search/QuickFindCards";
 
-type EmployeeFormType = {
-  jobTitle: string;
-  department: string;
-  bankAccount: string;
-  irdNumber: string;
-  taxCode: string;
-  emergencyFirstName: string;
-  emergencyLastName: string;
-  emergencyPhone: string;
-  hireDate: string;
+type QuickFindPreview = QuoteSummary | JobSummary | CustomerSummary | null;
+
+type QuickFindApiResponse = {
+  result?: QuoteSummary | JobSummary | CustomerSummary | null;
+  error?: string;
 };
 
+type JobRecurrence = {
+  id: number;
+  job_uuid: string;
+  scheduled_at: string;
+  is_completed: boolean;
+  completed_date?: string | null;
+  status: string;
+  is_deleted?: boolean;
+  previous_status?: string | null;
+  updated_at?: string | null;
+};
+
+type Job = {
+  uuid: string;
+  status: string;
+  scheduled_at?: string | null;
+  created_at?: string | null;
+  total_amount?: number | null;
+  address?: string | null;
+  is_recurring?: boolean;
+  recurrence_end_date?: string | null;
+  future_recurrence_count?: number | null;
+  needs_attention?: boolean;
+  attention_reason?: string | null;
+
+  quote?: {
+    uuid: string;
+    contact_first_name?: string | null;
+    contact_last_name?: string | null;
+  } | null;
+
+  job_recurrences?: JobRecurrence[];
+};
+
+type AttentionBadge = {
+  label: string;
+  className: string;
+};
+
+type UpcomingJobsResponse = {
+  jobs?: Job[];
+  total?: number;
+  page?: number;
+  totalPages?: number;
+  hasNextPage?: boolean;
+};
+
+const DASHBOARD_JOB_LIMIT = 10;
+
+function getJobAttentionBadge(job: Job): AttentionBadge | null {
+  if (!job?.scheduled_at) {
+    return {
+      label: "Needs date",
+      className: "bg-yellow-100 text-yellow-900",
+    };
+  }
+
+  if (!job?.needs_attention) return null;
+
+  switch (job.attention_reason) {
+    case "missing_schedule":
+      return {
+        label: "Needs date",
+        className: "bg-yellow-100 text-yellow-900",
+      };
+
+    case "low_future_recurrences":
+      return {
+        label:
+          typeof job.future_recurrence_count === "number"
+            ? `Low recurrences (${job.future_recurrence_count})`
+            : "Low recurrences",
+        className: "bg-orange-100 text-orange-900",
+      };
+
+    case "no_future_recurrences":
+      return {
+        label: "No future recurrences",
+        className: "bg-red-100 text-red-900",
+      };
+
+    case "recurrence_ended":
+      return {
+        label: "Recurrence ended",
+        className: "bg-gray-200 text-gray-900",
+      };
+
+    default:
+      return {
+        label: "Needs update",
+        className: "bg-yellow-100 text-yellow-900",
+      };
+  }
+}
+
+function JobCard({
+  job,
+  onClick,
+  formatDateTime,
+}: {
+  job: Job;
+  onClick: () => void;
+  formatDateTime: (iso?: string | null) => string;
+}) {
+  const attentionBadge = getJobAttentionBadge(job);
+
+  return (
+    <Card className="cursor-pointer hover:shadow-lg transition" onClick={onClick}>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-900 truncate">
+              {formatFullName(
+                job?.quote?.contact_first_name ?? undefined,
+                job?.quote?.contact_last_name ?? undefined,
+                true
+              ) || "Unnamed customer"}
+            </p>
+
+            {job.address && <p className="text-gray-500 truncate">{job.address}</p>}
+
+            <p className="text-sm text-gray-400">Status: {job.status}</p>
+
+            <p className="text-sm text-gray-400">
+              Scheduled at: {formatDateTime(job.scheduled_at)}
+            </p>
+
+            {job.is_recurring && typeof job.future_recurrence_count === "number" && (
+              <p className="text-xs text-gray-500 mt-1">
+                Future recurrences: {job.future_recurrence_count}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            {attentionBadge && (
+              <span
+                className={`text-xs font-semibold px-2 py-1 rounded ${attentionBadge.className}`}
+              >
+                {attentionBadge.label}
+              </span>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function JobSection({
+  title,
+  subtitle,
+  icon,
+  jobs,
+  total,
+  emptyText,
+  loading,
+  onJobClick,
+  onViewAll,
+  onLoadMore,
+  hasMore,
+  loadMoreLoading,
+  formatDateTime,
+}: {
+  title: string;
+  subtitle?: string;
+  icon: React.ReactNode;
+  jobs: Job[];
+  total?: number;
+  emptyText: string;
+  loading?: boolean;
+  onJobClick: (jobUUID: string) => void;
+  onViewAll?: () => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadMoreLoading?: boolean;
+  formatDateTime: (iso?: string | null) => string;
+}) {
+  return (
+    <Card className="rounded-2xl shadow-sm">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="text-green-700">{icon}</div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+              {subtitle ? <p className="text-xs text-gray-500">{subtitle}</p> : null}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {typeof total === "number" && (
+              <span className="text-xs text-gray-500">
+                {total} job{total === 1 ? "" : "s"}
+              </span>
+            )}
+
+            {onViewAll && (
+              <Button
+                variant="outline"
+                className="cursor-pointer"
+                onClick={onViewAll}
+                type="button"
+              >
+                View all
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {loading && jobs.length === 0 ? (
+          <p className="text-sm text-gray-500">Loading jobs...</p>
+        ) : jobs.length === 0 ? (
+          <p className="text-sm text-gray-500">{emptyText}</p>
+        ) : (
+          <div className="space-y-2">
+            {jobs.map((job) => (
+              <JobCard
+                key={job.uuid}
+                job={job}
+                formatDateTime={formatDateTime}
+                onClick={() => onJobClick(job.uuid)}
+              />
+            ))}
+
+            {hasMore && onLoadMore && (
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  className="w-full cursor-pointer"
+                  onClick={onLoadMore}
+                  disabled={loadMoreLoading}
+                  type="button"
+                >
+                  {loadMoreLoading ? "Loading more..." : "Load more"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function OwnerDashboard() {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [fullName, setFullName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("employee");
 
-  // Pagination & quotes state
+  const [quickFindType, setQuickFindType] = useState<QuickFindType>("quotes");
+  const [quickFindValue, setQuickFindValue] = useState("");
+  const [quickFindPreview, setQuickFindPreview] = useState<QuickFindPreview>(null);
+  const [quickFindSearching, setQuickFindSearching] = useState(false);
+  const [quickFindError, setQuickFindError] = useState<string | null>(null);
+
+  const [searchValue, setSearchValue] = useState("");
+
   const [draftQuotes, setDraftQuotes] = useState<any[]>([]);
   const [sentQuotes, setSentQuotes] = useState<any[]>([]);
   const [expiredQuotes, setExpiredQuotes] = useState<any[]>([]);
@@ -36,49 +302,133 @@ export default function OwnerDashboard() {
   const [sentTotalPages, setSentTotalPages] = useState(1);
   const [fetchingDrafts, setFetchingDrafts] = useState(false);
   const [fetchingSent, setFetchingSent] = useState(false);
-  const [limit, setLimit] = useState<number>(0);
-  const [daysOld, setDaysOld] = useState<number>(0);
 
-  useRoleRedirect("owner");
-  // -----------------------
-  // Initial load
-  // -----------------------
-  useEffect(() => {
-    // setLoading(true);
-    setLoading(true); // page-level spinner
-    if (!user) {
-      router.replace("/auth");
+  const [attentionJobs, setAttentionJobs] = useState<Job[]>([]);
+  const [attentionJobsLoading, setAttentionJobsLoading] = useState(false);
+  const [attentionJobsTotal, setAttentionJobsTotal] = useState(0);
+
+  const [todayJobs, setTodayJobs] = useState<Job[]>([]);
+  const [todayJobsLoading, setTodayJobsLoading] = useState(false);
+  const [todayJobsTotal, setTodayJobsTotal] = useState(0);
+
+  const [tomorrowJobs, setTomorrowJobs] = useState<Job[]>([]);
+  const [tomorrowJobsLoading, setTomorrowJobsLoading] = useState(false);
+  const [tomorrowJobsTotal, setTomorrowJobsTotal] = useState(0);
+
+  const [next7Jobs, setNext7Jobs] = useState<Job[]>([]);
+  const [next7JobsLoading, setNext7JobsLoading] = useState(false);
+  const [next7JobsTotal, setNext7JobsTotal] = useState(0);
+  const [next7JobsPage, setNext7JobsPage] = useState(1);
+  const [next7JobsTotalPages, setNext7JobsTotalPages] = useState(1);
+
+  const dashboardRole = getDashboardRole(user?.role);
+  const UUID_REGEX = /^[a-zA-Z0-9]{9}$/;
+
+  const handleGlobalSearch = () => {
+    const value = searchValue.trim();
+
+    if (!value) {
+      alert("Enter a search value");
       return;
     }
 
-    if (user.role !== "owner") {
-      const redirectPath = roleRedirectMap[user.role] || "/";
-      router.replace(redirectPath);
+    router.push(`/dashboard/owner/search?q=${encodeURIComponent(value)}`);
+  };
+
+  const handleGlobalSearchKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (e.key === "Enter") handleGlobalSearch();
+  };
+
+  const formatDateTime = (iso?: string | null) => {
+    if (!iso) return "Not set";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "Not set";
+    return d.toLocaleString();
+  };
+
+  const getQuoteStatusBadge = (status?: string | null) => {
+    const s = (status || "").toLowerCase();
+
+    if (s === "draft") {
+      return { label: "Draft", className: "bg-yellow-100 text-yellow-900" };
+    }
+    if (s === "sent") {
+      return { label: "Sent", className: "bg-blue-100 text-blue-900" };
+    }
+    if (s === "expired") {
+      return { label: "Expired", className: "bg-red-100 text-red-900" };
+    }
+
+    return { label: status || "Unknown", className: "bg-gray-100 text-gray-900" };
+  };
+
+  const getQuoteURL = (quoteUUID: string) => `/dashboard/${dashboardRole}/quotes/${quoteUUID}`;
+  const getJobURL = (jobUUID: string) => `/${dashboardRole}/jobs/uuid/${jobUUID}`;
+
+  const handleQuickFind = async () => {
+    const uuid = quickFindValue.trim();
+
+    setQuickFindError(null);
+    setQuickFindPreview(null);
+
+    if (!uuid) {
+      alert("Enter a UUID.");
       return;
     }
 
-    setFullName(`${user.first_name} ${user.last_name}`);
-    setLoading(false);
+    if (!UUID_REGEX.test(uuid)) {
+      alert("UUID must be exactly 9 letters or numbers.");
+      return;
+    }
 
-    // Fetch quotes
-    fetchExpiredQuotes(3);
-    fetchDraftQuotes(1, 10);
-    fetchSentQuotes(1, 10);
-    setLoading(false);
-  }, [user]);
+    try {
+      setQuickFindSearching(true);
 
-  // -----------------------
-  // Fetch quotes functions
-  // -----------------------
-  const fetchDraftQuotes = async (pageNumber: number, quoteLimit?: number, lengthOfDays?: number) => {
+      const res = await fetch(`/api/quick-find?type=${quickFindType}&uuid=${uuid}`);
+      const data: QuickFindApiResponse = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setQuickFindError(data?.error || "Search failed");
+        return;
+      }
+
+      if (!data?.result) {
+        setQuickFindError("No results found");
+        return;
+      }
+
+      setQuickFindPreview(data.result);
+    } catch (err: any) {
+      setQuickFindError(err?.message || "Search failed");
+    } finally {
+      setQuickFindSearching(false);
+    }
+  };
+
+  const handleQuickFindKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (e.key === "Enter") handleQuickFind();
+  };
+
+  const fetchDraftQuotes = async ({
+    pageNumber,
+    quoteLimit = 5,
+    lengthOfDays = 7,
+  }: {
+    pageNumber: number;
+    quoteLimit?: number;
+    lengthOfDays?: number;
+  }) => {
     if (fetchingDrafts || pageNumber > draftTotalPages) return;
     setFetchingDrafts(true);
+
     try {
-      const res = await fetch(`/api/quotes?status=draft&limit=${quoteLimit}&page=${pageNumber}&olderThan=${lengthOfDays}`);
+      const res = await fetch(
+        `/api/quotes?status=draft&limit=${quoteLimit}&page=${pageNumber}&olderThan=${lengthOfDays}`
+      );
       if (!res.ok) throw new Error("Failed to fetch draft quotes");
       const data = await res.json();
 
-      setDraftQuotes(prev => [...prev, ...data.quotes]);
+      setDraftQuotes((prev) => [...prev, ...(data.quotes || [])]);
       setDraftPage(data.page);
       setDraftTotalPages(data.totalPages);
     } catch (err) {
@@ -88,17 +438,26 @@ export default function OwnerDashboard() {
     }
   };
 
-  const fetchSentQuotes = async (pageNumber: number, quoteLimit?: number, lengthOfDays?: number) => {
+  const fetchSentQuotes = async ({
+    pageNumber,
+    quoteLimit = 5,
+    lengthOfDays = 7,
+  }: {
+    pageNumber: number;
+    quoteLimit?: number;
+    lengthOfDays?: number;
+  }) => {
     if (fetchingSent || pageNumber > sentTotalPages) return;
     setFetchingSent(true);
 
     try {
-      const res = await fetch(`/api/quotes?status=sent&limit=${quoteLimit}&page=${pageNumber}&olderThan=${lengthOfDays}`);
+      const res = await fetch(
+        `/api/quotes?status=sent&limit=${quoteLimit}&page=${pageNumber}&olderThan=${lengthOfDays}`
+      );
       if (!res.ok) throw new Error("Failed to fetch sent quotes");
       const data = await res.json();
-      console.log({data}, " sent quotes")
 
-      setSentQuotes(prev => [...prev, ...data.quotes]);
+      setSentQuotes((prev) => [...prev, ...(data.quotes || [])]);
       setSentPage(data.page);
       setSentTotalPages(data.totalPages);
     } catch (err) {
@@ -108,13 +467,20 @@ export default function OwnerDashboard() {
     }
   };
 
-  const fetchExpiredQuotes = async (lengthOfDays: number = 7) => {
+  const fetchExpiredQuotes = async ({
+    lengthOfDays = 7,
+    quoteLimit = 5,
+  }: {
+    lengthOfDays?: number;
+    quoteLimit?: number;
+  }) => {
     try {
-      const res = await fetch(`/api/quotes?status=expired&olderThan=${lengthOfDays}`);
+      const res = await fetch(
+        `/api/quotes?status=expired&limit=${quoteLimit}&olderThan=${lengthOfDays}`
+      );
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.error || "Failed to fetch expired quotes");
-       console.log({data}, " expired quotes")
       setExpiredQuotes(data.quotes || []);
     } catch (err: any) {
       console.error("Error fetching expired quotes:", err.message || err);
@@ -122,17 +488,101 @@ export default function OwnerDashboard() {
     }
   };
 
-  // -----------------------
-  // Invite user
-  // -----------------------
+  const fetchDashboardJobSection = async ({
+    range,
+    page = 1,
+    append = false,
+    limit = DASHBOARD_JOB_LIMIT,
+  }: {
+    range: "attention" | "today" | "tomorrow" | "next7days";
+    page?: number;
+    append?: boolean;
+    limit?: number;
+  }) => {
+    const setLoadingForRange = (value: boolean) => {
+      if (range === "attention") setAttentionJobsLoading(value);
+      if (range === "today") setTodayJobsLoading(value);
+      if (range === "tomorrow") setTomorrowJobsLoading(value);
+      if (range === "next7days") setNext7JobsLoading(value);
+    };
+
+    setLoadingForRange(true);
+
+    try {
+      const res = await fetch(`/api/jobs/dashboard?range=${range}&limit=${limit}&page=${page}`);
+      if (!res.ok) throw new Error(`Failed to fetch ${range} jobs`);
+
+      const data: UpcomingJobsResponse = await res.json();
+      const jobs = data.jobs || [];
+      const total = data.total || jobs.length;
+
+      if (range === "attention") {
+        setAttentionJobs(jobs);
+        setAttentionJobsTotal(total);
+      }
+
+      if (range === "today") {
+        setTodayJobs(jobs);
+        setTodayJobsTotal(total);
+      }
+
+      if (range === "tomorrow") {
+        setTomorrowJobs(jobs);
+        setTomorrowJobsTotal(total);
+      }
+
+      if (range === "next7days") {
+        setNext7Jobs((prev) => (append ? [...prev, ...jobs] : jobs));
+        setNext7JobsTotal(total);
+        setNext7JobsPage(data.page || page);
+        setNext7JobsTotalPages(data.totalPages || 1);
+      }
+    } catch (err) {
+      console.error(err);
+      if (range === "attention") {
+        setAttentionJobs([]);
+        setAttentionJobsTotal(0);
+      }
+      if (range === "today") {
+        setTodayJobs([]);
+        setTodayJobsTotal(0);
+      }
+      if (range === "tomorrow") {
+        setTomorrowJobs([]);
+        setTomorrowJobsTotal(0);
+      }
+      if (range === "next7days") {
+        if (!append) {
+          setNext7Jobs([]);
+          setNext7JobsTotal(0);
+          setNext7JobsPage(1);
+          setNext7JobsTotalPages(1);
+        }
+      }
+    } finally {
+      setLoadingForRange(false);
+    }
+  };
+
+  const handleLoadMoreNext7Days = async () => {
+    if (next7JobsLoading || next7JobsPage >= next7JobsTotalPages) return;
+    await fetchDashboardJobSection({
+      range: "next7days",
+      page: next7JobsPage + 1,
+      append: true,
+    });
+  };
+
   const handleInviteUser = async () => {
     if (!inviteEmail) return alert("Enter an email");
+
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
       });
+
       if (!res.ok) throw new Error("Failed to send invite");
       alert(`Invite sent to ${inviteEmail}`);
       setInviteEmail("");
@@ -143,181 +593,575 @@ export default function OwnerDashboard() {
     }
   };
 
-  const getQuoteURL = (quoteUUID: string) => `/dashboard/${user?.role}/quotes/${quoteUUID}`;
-
-  // -----------------------
-  // Infinite scroll handlers
-  // -----------------------
-  const draftContainerRef = useRef<HTMLDivElement>(null);
-  const sentContainerRef = useRef<HTMLDivElement>(null);
-
-  const handleScroll = useCallback(() => {
-    if (draftContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = draftContainerRef.current;
-      if (scrollTop + clientHeight >= scrollHeight - 50 && draftPage < draftTotalPages) {
-        fetchDraftQuotes(draftPage + 1, limit);
-      }
-    }
-
-    if (sentContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = sentContainerRef.current;
-      if (scrollTop + clientHeight >= scrollHeight - 50 && sentPage < sentTotalPages) {
-        fetchSentQuotes(sentPage + 1, limit);
-      }
-    }
-  }, [draftPage, draftTotalPages, sentPage, sentTotalPages]);
-
   useEffect(() => {
-    const draftDiv = draftContainerRef.current;
-    const sentDiv = sentContainerRef.current;
+    let cancelled = false;
 
-    draftDiv?.addEventListener("scroll", handleScroll);
-    sentDiv?.addEventListener("scroll", handleScroll);
+    const run = async () => {
+      setLoading(true);
+
+      if (!user) {
+        router.replace("/auth");
+        return;
+      }
+
+      if (user.role !== "owner") {
+        router.replace(roleRedirectMap[user.role] || "/");
+        return;
+      }
+
+      setFullName(formatFullName(user.first_name, user.last_name, false));
+
+      try {
+        await Promise.all([
+          fetchExpiredQuotes({ lengthOfDays: 1, quoteLimit: 5 }),
+          fetchDraftQuotes({ pageNumber: 1, quoteLimit: 5 }),
+          fetchSentQuotes({ pageNumber: 1, quoteLimit: 5 }),
+          fetchDashboardJobSection({ range: "attention", limit: DASHBOARD_JOB_LIMIT }),
+          fetchDashboardJobSection({ range: "today", limit: DASHBOARD_JOB_LIMIT }),
+          fetchDashboardJobSection({ range: "tomorrow", limit: DASHBOARD_JOB_LIMIT }),
+          fetchDashboardJobSection({ range: "next7days", limit: DASHBOARD_JOB_LIMIT }),
+        ]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    run();
 
     return () => {
-      draftDiv?.removeEventListener("scroll", handleScroll);
-      sentDiv?.removeEventListener("scroll", handleScroll);
+      cancelled = true;
     };
-  }, [handleScroll]);
+  }, [user]);
+
+  const upcomingHighlightsCount = useMemo(() => {
+    return (todayJobsTotal || 0) + (tomorrowJobsTotal || 0) + (next7JobsTotal || 0);
+  }, [todayJobsTotal, tomorrowJobsTotal, next7JobsTotal]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center">
-          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-4 text-gray-600 text-lg">Loading your dashboard...</p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-green-700 border-solid" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <header className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-green-900">Owner Dashboard</h1>
-          <p className="text-gray-600">
-            Welcome back {fullName} <span className="wave text-3xl">👋</span>
-          </p>
-        </div>
-        <Button
-          onClick={() => router.push("/dashboard/owner/settings")}
-          className="bg-green-700 text-white hover:bg-green-800"
-        >
-          Edit Employee Details
-        </Button>
-      </header>
+    <div className="min-h-screen bg-gray-50">
+      <div className="sticky top-0 z-20 border-b bg-white/80 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-green-900 truncate">
+                Owner Dashboard
+              </h1>
+              <p className="text-sm text-gray-600 truncate">
+                Welcome back {fullName} <span className="wave text-2xl">👋</span>
+              </p>
+            </div>
 
-      {/* Stats */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        <StatCard title="Active Jobs" value="12" icon={<Calendar />} />
-        <StatCard title="Customers" value="84" icon={<Users />} />
-        <StatCard title="Quotes Sent" value="27" icon={<FileText />} />
-        <StatCard title="Revenue (MTD)" value="$4,320" icon={<DollarSign />} />
-      </section>
-
-      {/* Quick Actions + Invite */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
-        <Card className="rounded-2xl shadow-sm">
-          <CardContent>
-            <h2 className="text-xl font-semibold mb-4">Invite User</h2>
-            <input
-              type="email"
-              placeholder="User email"
-              value={inviteEmail}
-              onChange={e => setInviteEmail(e.target.value)}
-              className="border px-3 py-2 rounded w-full mb-2"
-            />
-            <select
-              value={inviteRole}
-              onChange={e => setInviteRole(e.target.value)}
-              className="border px-3 py-2 rounded w-full mb-2"
-            >
-              <option value="employee">Employee</option>
-              <option value="admin">Admin</option>
-              <option value="owner">Owner</option>
-            </select>
-            <Button onClick={handleInviteUser}>Send Invite</Button>
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Draft Quotes */}
-      <section className="mb-10">
-        <h2 className="text-xl font-semibold mb-4">Draft Quotes / Awaiting Prices</h2>
-        <div ref={draftContainerRef} className="max-h-96 overflow-auto space-y-2">
-          {draftQuotes.length === 0 ? (
-            <p>No draft quotes</p>
-          ) : (
-            draftQuotes.map(quote => (
-              <Card
-                key={quote.uuid}
-                className="cursor-pointer hover:shadow-lg transition"
-                onClick={() => router.push(getQuoteURL(quote.uuid))}
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto cursor-pointer hover:bg-green-900 hover:text-white"
+                onClick={() => router.push("/dashboard/owner/search")}
               >
-                <CardContent>
-                  <p className="font-semibold">{quote.contact_first_name} {quote.contact_last_name}</p>
-                  <p className="text-gray-500">Total: ${quote.total_amount}</p>
-                  <p className="text-sm text-gray-400">Status: {quote.status}</p>
-                </CardContent>
-              </Card>
-            ))
-          )}
-          {fetchingDrafts && <p className="text-gray-500 text-center py-2">Loading more drafts...</p>}
-        </div>
-      </section>
+                <Search className="h-4 w-4 mr-2" />
+                Deep Search
+              </Button>
 
-      {/* Sent Quotes */}
-      <section className="mb-10">
-        <h2 className="text-xl font-semibold mb-4">Sent Quotes / Awaiting Customer Reply</h2>
-        <div ref={sentContainerRef} className="max-h-96 overflow-auto space-y-2">
-          {sentQuotes.length === 0 ? (
-            <p>No sent quotes</p>
-          ) : (
-            sentQuotes.map(quote => (
-              <Card
-                key={quote.uuid}
-                className="cursor-pointer hover:shadow-lg transition"
-                onClick={() => router.push(getQuoteURL(quote.uuid))}
+              <Button
+                onClick={() => router.push("/dashboard/owner/settings")}
+                className="w-full sm:w-auto bg-green-700 text-white hover:bg-green-800"
               >
-                <CardContent>
-                  <p className="font-semibold">{quote.contact_first_name} {quote.contact_last_name}</p>
-                  <p className="text-gray-500">Total: ${quote.total_amount}</p>
-                  <p className="text-sm text-gray-400">Status: {quote.status}</p>
-                </CardContent>
-              </Card>
-            ))
-          )}
-          {fetchingSent && <p className="text-gray-500 text-center py-2">Loading more sent quotes...</p>}
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+            </div>
+          </div>
         </div>
-      </section>
+      </div>
 
-      {/* Expired Quotes */}
-      <section className="mb-10">
-        <h2 className="text-xl font-semibold mb-4">Expired Quotes</h2>
-        {expiredQuotes.length === 0 ? (
-          <p>No expired quotes</p>
-        ) : (
-          expiredQuotes.map(quote => (
-            <Card
-              key={quote.uuid}
-              className="cursor-pointer hover:shadow-lg transition"
-              onClick={() => router.push(getQuoteURL(quote.uuid))}
-            >
-              <CardContent>
-                <p className="font-semibold">{quote.contact_first_name} {quote.contact_last_name}</p>
-                <p className="text-gray-500">Total: ${quote.total_amount}</p>
-                <p className="text-sm text-gray-400">Status: {quote.status}</p>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+          <StatCard title="Active Jobs" value="12" icon={<Calendar />} />
+          <StatCard title="Customers" value="84" icon={<Users />} />
+          <StatCard title="Quotes Sent" value="27" icon={<FileText />} />
+          <StatCard
+            title="Upcoming Jobs"
+            value={String(upcomingHighlightsCount)}
+            icon={<Clock3 />}
+          />
+        </section>
+
+        <section className="mb-8">
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Search className="h-5 w-5 text-green-700" />
+                  <h2 className="text-xl font-semibold">Search</h2>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Search by name, email, phone, address, or UUID
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2">
+                <input
+                  type="text"
+                  placeholder="Search customer, quote, or job..."
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  onKeyDown={handleGlobalSearchKeyDown}
+                  className="border px-3 py-2 rounded w-full"
+                />
+
+                <Button
+                  onClick={handleGlobalSearch}
+                  className="cursor-pointer bg-green-600 text-white hover:bg-green-900 hover:text-white"
+                >
+                  Search
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="cursor-pointer"
+                  onClick={() => setSearchValue("")}
+                >
+                  Clear
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <Card className="rounded-2xl shadow-sm lg:col-span-2">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Search className="h-5 w-5 text-green-700" />
+                  <h2 className="text-xl font-semibold">Quick Find</h2>
+                </div>
+                <p className="text-xs text-gray-500">9-character UUID</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <select
+                  value={quickFindType}
+                  onChange={(e) => {
+                    setQuickFindType(e.target.value as QuickFindType);
+                    setQuickFindPreview(null);
+                    setQuickFindError(null);
+                  }}
+                  className="border px-3 py-2 rounded w-full hover:cursor-pointer"
+                >
+                  <option value="quotes">Quote</option>
+                  <option value="jobs">Job</option>
+                  <option value="customers">Customer</option>
+                </select>
+
+                <input
+                  type="text"
+                  placeholder="Enter UUID..."
+                  value={quickFindValue}
+                  maxLength={9}
+                  onChange={(e) => setQuickFindValue(e.target.value)}
+                  onKeyDown={handleQuickFindKeyDown}
+                  className="border px-3 py-2 rounded w-full sm:col-span-2"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Button
+                  onClick={handleQuickFind}
+                  className="cursor-pointer bg-green-600 text-white hover:bg-green-900 hover:text-white"
+                >
+                  Go
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="cursor-pointer bg-red-500 text-white hover:bg-red-800 hover:text-white"
+                  onClick={() => {
+                    setQuickFindValue("");
+                    setQuickFindPreview(null);
+                    setQuickFindError(null);
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {quickFindSearching && <p className="text-sm text-gray-500">Searching…</p>}
+                {!quickFindSearching && quickFindError && (
+                  <p className="text-sm text-red-600">{quickFindError}</p>
+                )}
+                <QuickFindResult type={quickFindType} result={quickFindPreview} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Send className="h-5 w-5 text-green-700" />
+                <h2 className="text-xl font-semibold">Invite User</h2>
+              </div>
+
+              <input
+                type="email"
+                placeholder="User email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                className="border px-3 py-2 rounded w-full mb-2"
+              />
+
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+                className="border px-3 py-2 rounded w-full mb-3 hover:cursor-pointer"
+              >
+                <option value="employee">Employee</option>
+                <option value="admin">Admin</option>
+                <option value="owner">Owner</option>
+              </select>
+
+              <Button
+                onClick={handleInviteUser}
+                className="w-full cursor-pointer bg-green-600 text-white hover:bg-green-900 hover:text-white"
+              >
+                Send Invite
+              </Button>
+            </CardContent>
+          </Card>
+        </section>
+
+        {attentionJobs.length > 0 && (
+          <section className="mb-8">
+            <Card className="rounded-2xl shadow-sm border-yellow-200">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-yellow-700" />
+                    <div>
+                      <h2 className="text-xl font-semibold text-yellow-900">
+                        Jobs Requiring Attention
+                      </h2>
+                      <p className="text-xs text-yellow-700">
+                        Missing dates, low recurrences, or ended schedules
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-yellow-700">
+                      {attentionJobsTotal} job{attentionJobsTotal === 1 ? "" : "s"}
+                    </span>
+                    <Button
+                      variant="outline"
+                      className="cursor-pointer"
+                      onClick={() => router.push("/dashboard/owner/jobs?filter=attention")}
+                    >
+                      View all
+                    </Button>
+                  </div>
+                </div>
+
+                {attentionJobsLoading && attentionJobs.length === 0 ? (
+                  <p className="text-sm text-gray-500">Loading attention jobs...</p>
+                ) : (
+                  <div className="space-y-2">
+                    {attentionJobs.map((job) => (
+                      <JobCard
+                        key={job.uuid}
+                        job={job}
+                        formatDateTime={formatDateTime}
+                        onClick={() => router.push(getJobURL(job.uuid))}
+                      />
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
-          ))
+          </section>
         )}
-      </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+          <JobSection
+            title="Today"
+            subtitle="Up to 10 jobs shown on dashboard"
+            icon={<Clock3 className="h-5 w-5" />}
+            jobs={todayJobs}
+            total={todayJobsTotal}
+            emptyText="No jobs scheduled for today."
+            loading={todayJobsLoading}
+            onJobClick={(uuid) => router.push(getJobURL(uuid))}
+            onViewAll={() => router.push("/dashboard/owner/jobs?range=today")}
+            formatDateTime={formatDateTime}
+          />
+
+          <JobSection
+            title="Tomorrow"
+            subtitle="Up to 10 jobs shown on dashboard"
+            icon={<Calendar className="h-5 w-5" />}
+            jobs={tomorrowJobs}
+            total={tomorrowJobsTotal}
+            emptyText="No jobs scheduled for tomorrow."
+            loading={tomorrowJobsLoading}
+            onJobClick={(uuid) => router.push(getJobURL(uuid))}
+            onViewAll={() => router.push("/dashboard/owner/jobs?range=tomorrow")}
+            formatDateTime={formatDateTime}
+          />
+
+          <JobSection
+            title="Next 7 Days"
+            subtitle="10 per page with load more"
+            icon={<CalendarDays className="h-5 w-5" />}
+            jobs={next7Jobs}
+            total={next7JobsTotal}
+            emptyText="No upcoming jobs in the next 7 days."
+            loading={next7JobsLoading}
+            onJobClick={(uuid) => router.push(getJobURL(uuid))}
+            onViewAll={() => router.push("/dashboard/owner/jobs?range=next7days")}
+            onLoadMore={handleLoadMoreNext7Days}
+            hasMore={next7JobsPage < next7JobsTotalPages}
+            loadMoreLoading={next7JobsLoading}
+            formatDateTime={formatDateTime}
+          />
+        </section>
+
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="rounded-2xl shadow-sm lg:col-span-2">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Jobs Workspace</h2>
+                  <p className="text-xs text-gray-500">
+                    Open the full jobs view for calendar, filters, and all results
+                  </p>
+                </div>
+
+                <Button
+                  variant="outline"
+                  className="cursor-pointer"
+                  onClick={() => router.push("/dashboard/owner/jobs")}
+                >
+                  Open jobs page
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard/owner/jobs?range=today")}
+                  className="rounded-xl border bg-white p-4 text-left hover:shadow transition cursor-pointer"
+                >
+                  <p className="text-sm text-gray-500">Today</p>
+                  <p className="text-2xl font-bold text-gray-900">{todayJobsTotal}</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard/owner/jobs?range=tomorrow")}
+                  className="rounded-xl border bg-white p-4 text-left hover:shadow transition cursor-pointer"
+                >
+                  <p className="text-sm text-gray-500">Tomorrow</p>
+                  <p className="text-2xl font-bold text-gray-900">{tomorrowJobsTotal}</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard/owner/jobs?range=next7days")}
+                  className="rounded-xl border bg-white p-4 text-left hover:shadow transition cursor-pointer"
+                >
+                  <p className="text-sm text-gray-500">Next 7 Days</p>
+                  <p className="text-2xl font-bold text-gray-900">{next7JobsTotal}</p>
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-6">
+            <Card className="rounded-2xl shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">Draft Quotes</h2>
+                  <span className="text-xs text-gray-500">Awaiting Prices</span>
+                </div>
+
+                <div className="max-h-72 overflow-auto space-y-2 pb-3 pr-1">
+                  {draftQuotes.length === 0 ? (
+                    <p>No draft quotes</p>
+                  ) : (
+                    draftQuotes.map((quote) => {
+                      const badge = getQuoteStatusBadge("draft");
+                      return (
+                        <Card
+                          key={quote.uuid}
+                          className="cursor-pointer hover:shadow-lg transition"
+                          onClick={() => router.push(getQuoteURL(quote.uuid))}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="pt-1">
+                                <p className="font-semibold">
+                                  {quote.contact_first_name} {quote.contact_last_name}
+                                </p>
+                                <p className="text-gray-500">Total: ${quote.total_amount}</p>
+                              </div>
+
+                              <span
+                                className={`text-xs font-semibold px-2 py-1 rounded ${badge.className}`}
+                              >
+                                {badge.label}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
+
+                  {fetchingDrafts && (
+                    <p className="text-gray-500 text-center py-2">Loading more drafts...</p>
+                  )}
+
+                  {!fetchingDrafts && draftPage < draftTotalPages && (
+                    <Button
+                      variant="outline"
+                      className="w-full cursor-pointer"
+                      onClick={() =>
+                        fetchDraftQuotes({ pageNumber: draftPage + 1, quoteLimit: 5 })
+                      }
+                    >
+                      Load more drafts
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">Sent Quotes</h2>
+                  <span className="text-xs text-gray-500">Awaiting Reply</span>
+                </div>
+
+                <div className="max-h-72 overflow-auto space-y-2 pb-3 pr-1">
+                  {sentQuotes.length === 0 ? (
+                    <p>No sent quotes</p>
+                  ) : (
+                    sentQuotes.map((quote) => {
+                      const badge = getQuoteStatusBadge("sent");
+                      return (
+                        <Card
+                          key={quote.uuid}
+                          className="cursor-pointer hover:shadow-lg transition"
+                          onClick={() => router.push(getQuoteURL(quote.uuid))}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="pt-1">
+                                <p className="font-semibold">
+                                  {quote.contact_first_name} {quote.contact_last_name}
+                                </p>
+                                <p className="text-gray-500">Total: ${quote.total_amount}</p>
+                              </div>
+
+                              <span
+                                className={`text-xs font-semibold px-2 py-1 rounded ${badge.className}`}
+                              >
+                                {badge.label}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
+
+                  {fetchingSent && (
+                    <p className="text-gray-500 text-center py-2">Loading more sent quotes...</p>
+                  )}
+
+                  {!fetchingSent && sentPage < sentTotalPages && (
+                    <Button
+                      variant="outline"
+                      className="w-full cursor-pointer"
+                      onClick={() =>
+                        fetchSentQuotes({ pageNumber: sentPage + 1, quoteLimit: 5 })
+                      }
+                    >
+                      Load more sent quotes
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">Expired Quotes</h2>
+                  <span className="text-xs text-gray-500">Follow Up</span>
+                </div>
+
+                {expiredQuotes.length === 0 ? (
+                  <p>No expired quotes</p>
+                ) : (
+                  <div className="space-y-2">
+                    {expiredQuotes.map((quote) => {
+                      const badge = getQuoteStatusBadge("expired");
+                      return (
+                        <Card
+                          key={quote.uuid}
+                          className="cursor-pointer hover:shadow-lg transition"
+                          onClick={() => router.push(getQuoteURL(quote.uuid))}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="pt-1">
+                                <p className="font-semibold">
+                                  {quote.contact_first_name} {quote.contact_last_name}
+                                </p>
+                                <p className="text-gray-500">Total: ${quote.total_amount}</p>
+                              </div>
+
+                              <span
+                                className={`text-xs font-semibold px-2 py-1 rounded ${badge.className}`}
+                              >
+                                {badge.label}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
 
-function StatCard({ title, value, icon }: { title: string; value: string; icon: React.ReactNode }) {
+function StatCard({
+  title,
+  value,
+  icon,
+}: {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+}) {
   return (
     <Card className="rounded-2xl shadow-sm">
       <CardContent className="p-5 flex items-center justify-between">

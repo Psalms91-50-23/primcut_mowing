@@ -1,9 +1,10 @@
 import React from "react";
-import { useAuth } from "../context/AuthContext"; // import your auth context
-type Props = {}
+import { useAuth } from "../context/AuthContext";
 
-export default function AboutPage (props: Props){
-  const { loading } = useAuth(); // get loading state from context
+type Props = {};
+
+export default function AboutPage(props: Props) {
+  const { loading } = useAuth();
 
   if (loading) {
     return (
@@ -12,116 +13,121 @@ export default function AboutPage (props: Props){
       </div>
     );
   }
-  
+
   return (
     <div className="bg-white text-black">
-       <div className="relative w-full">
+      <div className="relative w-full">
         <img
           src="/images/about_us_1.png"
-          alt="About Us"
+          alt="About Happy Property"
           className="w-full h-auto object-contain md:h-[950px] md:object-cover rounded shadow-lg"
         />
-        <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/25 flex items-center justify-center" />
+      </div>
+
+      <div className="px-6 py-14 md:px-10 lg:px-16 max-w-5xl mx-auto">
+        <h2 className="text-2xl md:text-3xl font-bold mb-6">Our Story</h2>
+
+        <p className="text-lg md:text-xl mb-6 leading-8">
+          Happy Property was built on a simple idea: property maintenance should
+          be reliable, professional, and easy to organise. As locals, we saw
+          that many homeowners, landlords, and property managers were often left
+          dealing with rushed work, poor communication, or services that fell
+          short of expectations. We knew there was a better way to serve our
+          community.
+        </p>
+
+        <p className="text-lg md:text-xl mb-6 leading-8">
+          Our focus is to provide dependable property care with clear
+          communication and consistent workmanship. From regular lawn and garden
+          maintenance to rubbish removal, property tidy-ups, and end-of-lease
+          preparation, we approach every job with care, attention to detail, and
+          respect for the property.
+        </p>
+
+        <p className="text-lg md:text-xl mb-6 leading-8">
+          We believe good service is not only about the result, but also about
+          the experience. That means being responsive, showing up on time,
+          providing clear quoting, and making the process straightforward from
+          first contact through to completion.
+        </p>
+
+        <h2 className="text-2xl md:text-3xl font-bold mt-12 mb-6">
+          What Makes Us Different
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+          <div className="p-6 border rounded shadow-sm bg-white">
+            <h3 className="font-semibold text-xl mb-2">Reliable & Professional</h3>
+            <p className="leading-7">
+              We value punctuality, consistency, and respectful communication so
+              our clients can feel confident in every booking.
+            </p>
+          </div>
+
+          <div className="p-6 border rounded shadow-sm bg-white">
+            <h3 className="font-semibold text-xl mb-2">Clear Communication</h3>
+            <p className="leading-7">
+              From enquiry to quote to completion, we aim to keep everything
+              straightforward, transparent, and easy to understand.
+            </p>
+          </div>
+
+          <div className="p-6 border rounded shadow-sm bg-white">
+            <h3 className="font-semibold text-xl mb-2">Detail-Focused Work</h3>
+            <p className="leading-7">
+              We take pride in doing the job properly, with care and attention
+              to detail rather than rushing through the work.
+            </p>
+          </div>
+
+          <div className="p-6 border rounded shadow-sm bg-white">
+            <h3 className="font-semibold text-xl mb-2">End-of-Lease & Property Support</h3>
+            <p className="leading-7">
+              We understand the standard required when preparing properties for
+              inspections, handovers, or new tenants.
+            </p>
+          </div>
+        </div>
+
+        <h2 className="text-2xl md:text-3xl font-bold mt-12 mb-6">
+          Who We Work With
+        </h2>
+
+        <div className="space-y-4 mb-10 text-lg md:text-xl">
+          <p>• Homeowners wanting dependable ongoing property maintenance</p>
+          <p>• Landlords preparing properties for new tenants or inspections</p>
+          <p>• Property managers needing reliable and responsive service</p>
+          <p>• Busy families looking for practical, stress-free property care</p>
+        </div>
+
+        <h2 className="text-2xl md:text-3xl font-bold mt-12 mb-6">
+          Our Approach
+        </h2>
+
+        <p className="text-lg md:text-xl mb-6 leading-8">
+          We aim to make quoting and booking simple. Clients can reach out,
+          provide details and photos, and receive a clear response based on the
+          work required. Our goal is to save you time, reduce stress, and give
+          you confidence that your property is in good hands.
+        </p>
+
+        <div className="bg-green-50 p-8 rounded text-center border border-green-100">
+          <h3 className="text-2xl font-semibold mb-4">
+            Ready to work with a dependable local team?
+          </h3>
+          <p className="mb-6 text-lg">
+            We’re here to make property maintenance simple, professional, and
+            stress-free.
+          </p>
+          <a
+            href="/contact"
+            className="inline-block bg-green-700 text-white px-6 py-3 rounded hover:bg-green-800 transition font-semibold"
+          >
+            Get a Free Quote
+          </a>
         </div>
       </div>
-      <div className="p-16 max-w-5xl mx-auto">
-
-    <h2 className="text-2xl md:text-3xl font-bold mb-6">
-      Our Story
-    </h2>
-
-    <p className="text-lg md:text-xl mb-6">
-      Happy Property was started by two passionate locals who saw the need for
-      reliable, detail-focused property maintenance services in the Hutt Valley.
-      Too often, homeowners and landlords were left dealing with rushed jobs,
-      inconsistent communication, or unfinished work. We believed there was a
-      better way.
-    </p>
-
-    <p className="text-lg md:text-xl mb-6">
-      Our goal is simple: provide dependable, high-quality property care that
-      gives our clients peace of mind. Whether it’s regular lawn maintenance,
-      end-of-lease preparation, or rubbish removal, we treat every property with
-      the same level of care and professionalism.
-    </p>
-
-    <h2 className="text-2xl md:text-3xl font-bold mt-12 mb-6">
-      What Makes Us Different
-    </h2>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-      <div className="p-6 border rounded shadow-sm">
-        <h3 className="font-semibold text-xl mb-2">Reliable & Punctual</h3>
-        <p>
-          We show up when we say we will and communicate clearly throughout the
-          entire process.
-        </p>
-      </div>
-
-      <div className="p-6 border rounded shadow-sm">
-        <h3 className="font-semibold text-xl mb-2">Detail-Focused Work</h3>
-        <p>
-          From lawns to full property tidy-ups, we take pride in doing the job
-          properly — not just quickly.
-        </p>
-      </div>
-
-      <div className="p-6 border rounded shadow-sm">
-        <h3 className="font-semibold text-xl mb-2">End-of-Lease Specialists</h3>
-        <p>
-          We understand what landlords and property managers need to prepare
-          homes for new tenants.
-        </p>
-      </div>
-
-      <div className="p-6 border rounded shadow-sm">
-        <h3 className="font-semibold text-xl mb-2">Local & Approachable</h3>
-        <p>
-          As locals, we care about our community and build long-term
-          relationships with our clients.
-        </p>
-      </div>
-    </div>
-
-    <h2 className="text-2xl md:text-3xl font-bold mt-12 mb-6">
-      Who We Work With
-    </h2>
-
-    <ul className="text-lg md:text-xl space-y-3 mb-10">
-      <li>• Homeowners who want regular maintenance</li>
-      <li>• Landlords preparing properties for new tenants</li>
-      <li>• Property managers needing dependable service</li>
-      <li>• Busy families who want their weekends back</li>
-    </ul>
-
-    <div className="bg-green-50 p-8 rounded text-center">
-      <h3 className="text-2xl font-semibold mb-4">
-        Ready to work with a reliable local team?
-      </h3>
-      <p className="mb-6">
-        We’re here to make property care simple and stress-free.
-      </p>
-      <a
-        href="/contact"
-        className="bg-green-700 text-white px-6 py-3 rounded hover:bg-green-800 transition font-semibold"
-      >
-        Get a Free Quote
-      </a>
-    </div>
-  </div>
-      {/* <div className="p-16">
-        <p className="text-lg md:text-xl mb-6">
-          We are two passionate locals who started Happy Lawns Mowing with a simple goal: to help homeowners and landlords maintain beautiful, healthy, and tidy properties. From lawns to rubbish removal and end-of-lease property care, we bring professionalism, reliability, and attention to detail to every job.
-        </p>
-        <p className="text-lg md:text-xl mb-6">
-          Our experience and hands-on approach mean we understand the challenges of keeping a property in top shape. We specialize in end-of-lease maintenance, ensuring rental properties are clean, well-kept, and ready for the next tenant. We also provide weed control, mowing, and rubbish collection to keep every property looking its best.
-        </p>
-        <p className="text-lg md:text-xl">
-          At Happy Lawns Mowing, we believe in doing the job right the first time. We pride ourselves on reliability, professionalism, and a friendly, approachable service. Whether you’re a homeowner looking to maintain your garden or a landlord preparing a property for new tenants, we’re here to help.
-        </p>
-      </div> */}
     </div>
   );
 }
-
-

@@ -8,18 +8,22 @@ const Home: React.FC<Props> = () => {
   const gridRef = useRef<HTMLDivElement>(null);
   const isSmall = useMediaQuery("(max-width: 639px)");
   const areas = [
-    "Petone",
-    "Waiwhetu",
-    "Waterloo",
+    "Alicetown",
+    "Avalon",
     "Epuni",
     "Fairfield",
-    "Woburn",
     "Lower Hutt",
+    "Melling",
+    "Moera",
     "Naenae",
-    "Taita",
+    "Petone",
     "Stokes Valley",
     "Silverstream",
+    "Taita",
     "Upper Hutt",
+    "Waiwhetu",
+    "Waterloo",
+    "Woburn",
   ];
 
   const [visibleItems, setVisibleItems] = useState<boolean[]>(
@@ -201,12 +205,12 @@ const Home: React.FC<Props> = () => {
               {
                 step: "2",
                 title: "Confirm Details",
-                desc: "We’ll confirm pricing and book a time that suits you.",
+                desc: "We’ll confirm pricing and confirm your booking with clear communication every step of the way.",
               },
               {
                 step: "3",
                 title: "Job Completed",
-                desc: "Professional finish and tidy clean-up guaranteed.",
+                desc: "Professional finish and tidy clean-up.",
               },
             ].map((item) => (
               <div key={item.step} className="p-8 bg-white rounded-2xl border shadow-sm">

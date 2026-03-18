@@ -2,8 +2,11 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     
-    const { quote_uuid } = req.query;
-    if (!quote_uuid || typeof quote_uuid !== "string") {
+    let { uuid , token} = req.query;
+    if (Array.isArray(uuid)) uuid = uuid[0];
+    if (Array.isArray(token)) token = token[0];
+
+    if (!uuid) {
         return res.status(400).json({ error: "Invalid quote UUID" });
     }
 
@@ -13,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
  
     try {
     const backendRes = await fetch(
-        `${process.env.BACKEND_URL}/api/quotes/uuid/${quote_uuid}`,
+        `${process.env.BACKEND_URL}/api/quotes/public/uuid/${uuid}?token=${token}`,
         {
         method: "GET",
         headers: { 
@@ -29,8 +32,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (setCookies) {
         res.setHeader("Set-Cookie", setCookies);
     }
+    console.log({data}, " public api quotes")
     return res.status(backendRes.status).json(data);
-
     } catch (err) {
     console.error("API GET quote error:", err);
     return res.status(500).json({ message: "Internal server error" });

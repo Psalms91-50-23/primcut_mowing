@@ -8,6 +8,7 @@ import { UIProvider, useUI } from '../context/UIContext'
 import { Toaster } from "react-hot-toast";
 import { setupShadowDOMStyling } from "../lib/gmpShadowStyling";
 import Script from "next/script";
+import { CustomerProvider } from "@/context/CustomerContext";
 
 function GlobalImageModal() {
   const { activeImage, closeImage } = useUI();
@@ -38,34 +39,36 @@ function GlobalImageModal() {
   );
 }
 
-function HappyLawns({ Component, pageProps }: AppProps) {
+function HappyProperty({ Component, pageProps }: AppProps) {
    useEffect(() => {
     setupShadowDOMStyling();
   }, []);
   
   return (
     <AuthProvider>
-      <UIProvider>
-        <Script
-            src={`https://www.google.com/recaptcha/api.js?render=${process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY}`}
-            strategy="beforeInteractive"
-          />
-          <div className="flex justify-center">
-            <NavBar />
-            <div
-              className="w-full max-w-[1600px] mx-auto"
-              style={{ paddingTop: "var(--nav-height)" }}
-            >
-            <main>
-                <Component {...pageProps} />
-              </main>
+      <CustomerProvider>
+        <UIProvider>
+          <Script
+              src={`https://www.google.com/recaptcha/api.js?render=${process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY}`}
+              strategy="beforeInteractive"
+            />
+            <div className="flex justify-center">
+              <NavBar />
+              <div
+                className="w-full max-w-[1600px] mx-auto"
+                style={{ paddingTop: "var(--nav-height)" }}
+              >
+              <main>
+                  <Component {...pageProps} />
+                </main>
+              </div>
             </div>
-          </div>
-        <Toaster position="top-center" toastOptions={{duration: 5000}} />
-        <GlobalImageModal />
-      </UIProvider>
+          <Toaster position="top-center" toastOptions={{duration: 5000}} />
+          <GlobalImageModal />
+        </UIProvider>
+      </CustomerProvider>
     </AuthProvider>
   )
 }
 
-export default HappyLawns
+export default HappyProperty

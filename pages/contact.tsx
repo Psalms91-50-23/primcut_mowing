@@ -1,16 +1,27 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useLoadScript, type Libraries } from "@react-google-maps/api";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
+import { useUI } from "../context/UIContext";
 import supabase from "@/config/db";
 import Header from "@/components/headers/Header";
+import GoogleAddressAutocomplete from "@/components/GoogleAddressAutocomplete";
+import { nzPhoneFromIntl } from "@/utils/phone";
+import { useCustomer } from "@/context/CustomerContext";
 
 type Props = {};
 
-type ImageInput = {
+type DynamicImageInput = {
+  id: string;
   label: string;
-  url: string;
+  file: File | null;
+  previewUrl: string | null;
 };
+
+type RecurrenceFrequency =
+  | "one_off"
+  | "weekly"
+  | "fortnightly"
+  | "monthly";
 
 type FormDataType = {
   firstName: string;
@@ -20,27 +31,76 @@ type FormDataType = {
   email: string;
   message: string;
   address: string;
-  images: ImageInput[];
+  recurrenceFrequency: RecurrenceFrequency;
 };
 
-const LIBRARIES: Libraries = ["places"];
+type ServiceOption = {
+  uuid: string;
+  code: string;
+  label: string;
+  description?: string | null;
+  category?: string | null;
+  requires_images?: boolean;
+  selected: boolean;
+};
+
+const MAX_IMAGE_UPLOADS = 10;
+const INITIAL_IMAGE_SLOTS = 4;
+
+const RECURRENCE_OPTIONS: Array<{
+  value: RecurrenceFrequency;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "one_off",
+    label: "One-off",
+    description: "A single visit only",
+  },
+  {
+    value: "weekly",
+    label: "Weekly",
+    description: "Ongoing weekly service",
+  },
+  {
+    value: "fortnightly",
+    label: "Fortnightly",
+    description: "Every 2 weeks",
+  },
+  {
+    value: "monthly",
+    label: "Monthly",
+    description: "Once a month",
+  },
+];
+
+const createImageRow = (): DynamicImageInput => ({
+  id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+  label: "",
+  file: null,
+  previewUrl: null,
+});
+
+const createInitialImageRows = (): DynamicImageInput[] =>
+  Array.from({ length: INITIAL_IMAGE_SLOTS }, () => createImageRow());
+
+const getSafeString = (value: unknown): string =>
+  typeof value === "string" ? value.trim() : "";
 
 export default function ContactPage(props: Props) {
-  const apiKey = process.env.NEXT_PUBLIC_PLACES_API;
-  const { loading } = useAuth(); // get loading state from 
+  const { loading } = useAuth();
+  const { customer, customerLoading } = useCustomer();
 
-  if (!apiKey) {
-    throw new Error("NEXT_PUBLIC_PLACES_API is not set");
-  }
-  // const memoLibraries = React.useMemo(() => LIBRARIES, [])
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: apiKey,
-    libraries: LIBRARIES,
-  });
+  const { openImage } = useUI() as {
+    openImage?: (url: string) => void;
+  };
 
-  const autocompleteContainerRef = useRef<HTMLDivElement | null>(null);
-  const autocompleteRef = useRef<google.maps.places.PlaceAutocompleteElement | null>(null);
+  const servicesDropdownRef = useRef<HTMLDivElement | null>(null);
+
   const [imageInputKey, setImageInputKey] = useState(0);
+  const [isServicesOpen, setIsServicesOpen] = useState(false);
+  const [formNotice, setFormNotice] = useState<string | null>(null);
+
   const [formData, setFormData] = useState<FormDataType>({
     firstName: "",
     lastName: "",
@@ -49,184 +109,417 @@ export default function ContactPage(props: Props) {
     email: "",
     message: "",
     address: "",
-    images: [
-      { label: "", url: "" },
-      { label: "", url: "" },
-      { label: "", url: "" },
-      { label: "", url: "" },
-    ],
+    recurrenceFrequency: "one_off",
   });
 
-  const [imageFiles, setImageFiles] = useState<(File | null)[]>([
-    null,
-    null,
-    null,
-    null,
-  ]);
-
-  const [imagePreviews, setImagePreviews] = useState<(string | null)[]>([
-    null,
-    null,
-    null,
-    null,
-  ]);
+  const [imageInputs, setImageInputs] =
+    useState<DynamicImageInput[]>(createInitialImageRows());
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [preferredContactMethod, setPreferredContactMethod] =
-    useState<"mobile" | "landline" | "email">("email");
+  const [isLoadingServices, setIsLoadingServices] = useState(true);
 
-  const [services, setServices] = useState<
-    { value: string; label: string; selected: boolean }[]
-  >([
-    { value: "property_maintenance", label: "Property maintenance", selected: false },
-    { value: "mowing", label: "Mowing", selected: false },
-    { value: "spraying", label: "Spraying", selected: false },
-    { value: "junk_removal", label: "Junk/Furniture removal", selected: false },
-  ]);
+  const [preferredContactMethod, setPreferredContactMethod] = useState<
+    "mobile" | "landline" | "email"
+  >("email");
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const [services, setServices] = useState<ServiceOption[]>([]);
+
+  const selectedServicesCount = services.filter((s) => s.selected).length;
+  const canAddMoreImages = imageInputs.length < MAX_IMAGE_UPLOADS;
+
+  const resolvedFirstName = getSafeString(customer?.first_name);
+  const resolvedLastName = getSafeString(customer?.last_name);
+  const resolvedEmail = getSafeString(customer?.email);
+  const resolvedMobile =
+    nzPhoneFromIntl(
+      getSafeString(customer?.mobile_phone) || getSafeString(customer?.mobile)
+    ) || "";
+  const resolvedLandline =
+    nzPhoneFromIntl(
+      getSafeString(customer?.landline_phone) ||
+        getSafeString(customer?.landline)
+    ) || "";
+  const resolvedAddress = getSafeString(customer?.address);
+
+  const selectedServicesSummary = useMemo(() => {
+    const selected = services.filter((s) => s.selected);
+    if (selected.length === 0) return "Select one or more services";
+    if (selected.length <= 2) return selected.map((s) => s.label).join(", ");
+    return `${selected[0].label}, ${selected[1].label} +${
+      selected.length - 2
+    } more`;
+  }, [services]);
+
+  const groupedServices = useMemo(() => {
+    const groups: Record<string, ServiceOption[]> = {};
+
+    for (const service of services) {
+      const key = service.category?.trim() || "Other";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(service);
+    }
+
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [services]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+
+    if (formNotice) {
+      setFormNotice(null);
+    }
+
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
   };
 
+  const handleRecurrenceChange = (value: RecurrenceFrequency) => {
+    if (formNotice) {
+      setFormNotice(null);
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      recurrenceFrequency: value,
+    }));
+  };
+
   useEffect(() => {
-    if (!isLoaded || !autocompleteContainerRef.current || loading) return; // wait for auth
+    if (loading || customerLoading) return;
 
-    const initAutocomplete = async () => {
-      // await google.maps.importLibrary("places");
+    setFormData((prev) => ({
+      ...prev,
+      firstName: prev.firstName || resolvedFirstName,
+      lastName: prev.lastName || resolvedLastName,
+      email: prev.email || resolvedEmail,
+      mobile: prev.mobile || resolvedMobile,
+      landline: prev.landline || resolvedLandline,
+      address: prev.address || resolvedAddress,
+    }));
+  }, [
+    loading,
+    customerLoading,
+    resolvedFirstName,
+    resolvedLastName,
+    resolvedEmail,
+    resolvedMobile,
+    resolvedLandline,
+    resolvedAddress,
+  ]);
 
-      // Clear old element if it exists
-      autocompleteContainerRef.current!.innerHTML = "";
-       // Bounds for all of New Zealand
-      // const nzBounds = new google.maps.LatLngBounds(
-      //   new google.maps.LatLng(-47.3, 166.2), // southwest corner of NZ
-      //   new google.maps.LatLng(-34.4, 178.6)  // northeast corner of NZ
-      // );
-      const placeAutocomplete = new google.maps.places.PlaceAutocompleteElement({
-        componentRestrictions: { country: ["nz"] },
-        requestedRegion: 'nz', // restrict to New Zealand
-        locationBias: {
-        center: { lat: -41.21, lng: 174.91 }, // Wellington region center
-        radius: 40000, // 40km covers Wellington + Lower Hutt + Upper Hutt
-      },
-         
+  // useEffect(() => {
+  //   let isMounted = true;
+
+  //   const fetchServices = async () => {
+  //     try {
+  //       setIsLoadingServices(true);
+
+  //       const res = await fetch("/api/services", {
+  //         method: "GET",
+  //         credentials: "include",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //         },
+  //       });
+
+  //       const result = await res.json().catch(() => null);
+
+  //       if (!res.ok) {
+  //         throw new Error(result?.error || "Failed to load services");
+  //       }
+
+  //       const serviceRows = Array.isArray(result?.data) ? result.data : [];
+
+  //       const mappedServices: ServiceOption[] = serviceRows.map((service: any) => ({
+  //         uuid: service.uuid,
+  //         code: service.code,
+  //         label: service.label,
+  //         description: service.description ?? null,
+  //         category: service.category ?? null,
+  //         requires_images: Boolean(service.requires_images),
+  //         selected: false,
+  //       }));
+
+  //       if (isMounted) {
+  //         setServices(mappedServices);
+  //       }
+  //     } catch (error) {
+  //       console.error("Failed to fetch services:", error);
+  //       if (isMounted) {
+  //         setServices([]);
+  //         toast.error("Failed to load services. Please refresh the page.");
+  //       }
+  //     } finally {
+  //       if (isMounted) {
+  //         setIsLoadingServices(false);
+  //       }
+  //     }
+  //   };
+
+  //   fetchServices();
+
+  //   return () => {
+  //     isMounted = false;
+  //   };
+  // }, []);
+  
+  useEffect(() => {
+  const fetchServices = async () => {
+    try {
+      setIsLoadingServices(true);
+
+      const res = await fetch("/api/services", {
+        method: "GET",
       });
 
-      autocompleteContainerRef.current!.appendChild(placeAutocomplete);
+      const result = await res.json();
 
-      placeAutocomplete.addEventListener(
-        "gmp-select",
-        async ({ placePrediction }: any) => {
-          const place = placePrediction.toPlace();
-          await place.fetchFields({
-            fields: ["formattedAddress", "addressComponents"],
-          });
+      console.log("frontend /api/services result:", result);
 
-          const address =
-            place.formattedAddress || place.displayName || placePrediction.description || "";
+      if (!res.ok) {
+        throw new Error(result?.error || "Failed to load services");
+      }
 
-          const postcodeComponent = place.addressComponents?.find((c: any) =>
-            c.types?.includes("postal_code")
-          );
+      const serviceRows = Array.isArray(result?.data) ? result.data : [];
 
-          const postcode = postcodeComponent?.longName || "";
+      const mappedServices: ServiceOption[] = serviceRows.map((service: any) => ({
+        uuid: service.uuid,
+        code: service.code,
+        label: service.label,
+        description: service.description ?? null,
+        category: service.category ?? null,
+        requires_images: Boolean(service.requires_images),
+        selected: false,
+      }));
 
-          const fullAddress = postcode ? `${address} ${postcode}` : address;
+      setServices(mappedServices);
+    } catch (error) {
+      console.error("Failed to fetch services:", error);
+      setServices([]);
+      toast.error("Failed to load services. Please refresh the page.");
+    } finally {
+      setIsLoadingServices(false);
+    }
+  };
 
-          setFormData(prev => ({ ...prev, address: fullAddress }));
-        }
-      );
+  fetchServices();
+}, []);
 
-      autocompleteRef.current = placeAutocomplete;
+  useEffect(() => {
+    const handlePointerDownOutside = (event: Event) => {
+      if (!isServicesOpen) return;
+
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      if (
+        servicesDropdownRef.current &&
+        !servicesDropdownRef.current.contains(target)
+      ) {
+        setIsServicesOpen(false);
+      }
     };
 
-    initAutocomplete();
-  }, [isLoaded, loading]);
+    document.addEventListener("pointerdown", handlePointerDownOutside, true);
+
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        handlePointerDownOutside,
+        true
+      );
+    };
+  }, [isServicesOpen]);
+
+  useEffect(() => {
+    return () => {
+      imageInputs.forEach((img) => {
+        if (img.previewUrl) {
+          URL.revokeObjectURL(img.previewUrl);
+        }
+      });
+    };
+  }, [imageInputs]);
 
   const handleServiceChange = (index: number) => {
-    setServices(prev => {
-      const newServices = [...prev];
-      newServices[index].selected = !newServices[index].selected;
-      return newServices;
+    if (formNotice) {
+      setFormNotice(null);
+    }
+
+    setServices((prev) => {
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        selected: !next[index].selected,
+      };
+      return next;
     });
   };
 
-  const handleImageLabelChange = (index: number, value: string) => {
-    setFormData(prev => {
-      const images = [...prev.images];
-      images[index].label = value;
-      return { ...prev, images };
-    });
+  const handleClearAllServices = () => {
+    if (formNotice) {
+      setFormNotice(null);
+    }
+
+    setServices((prev) =>
+      prev.map((service) => ({ ...service, selected: false }))
+    );
   };
 
-  const clearAutocompleteInput = () => {
-    const input =
-      autocompleteRef.current?.shadowRoot?.querySelector("input");
-    if (input) (input as HTMLInputElement).value = "";
+  const handleImageLabelChange = (id: string, value: string) => {
+    if (formNotice) {
+      setFormNotice(null);
+    }
+
+    setImageInputs((prev) =>
+      prev.map((img) => (img.id === id ? { ...img, label: value } : img))
+    );
   };
 
-  const handleImageFileChange = (index: number, file: File | null) => {
-    if (!file) return;
+  const handleImageFileChange = (id: string, file: File | null) => {
+    if (formNotice) {
+      setFormNotice(null);
+    }
 
-    const maxSizeMB = 10;
-    if (file.size > maxSizeMB * 1024 * 1024) {
-      alert("File is too large. Max 10MB per image.");
+    setImageInputs((prev) =>
+      prev.map((img) => {
+        if (img.id !== id) return img;
+
+        if (file && file.size > 10 * 1024 * 1024) {
+          alert("File is too large. Max 10MB per image.");
+          return img;
+        }
+
+        if (img.previewUrl) {
+          URL.revokeObjectURL(img.previewUrl);
+        }
+
+        if (!file) {
+          return {
+            ...img,
+            file: null,
+            previewUrl: null,
+          };
+        }
+
+        return {
+          ...img,
+          file,
+          previewUrl: URL.createObjectURL(file),
+        };
+      })
+    );
+  };
+
+  const handleAddImageSlot = () => {
+    if (formNotice) {
+      setFormNotice(null);
+    }
+
+    if (imageInputs.length >= MAX_IMAGE_UPLOADS) {
+      toast.error(`You can upload a maximum of ${MAX_IMAGE_UPLOADS} images.`);
       return;
     }
 
-    setImageFiles(prev => {
-      const newFiles = [...prev];
-      newFiles[index] = file;
-      return newFiles;
+    setImageInputs((prev) => [...prev, createImageRow()]);
+  };
+
+  const handleRemoveImageSlot = (id: string) => {
+    if (formNotice) {
+      setFormNotice(null);
+    }
+
+    setImageInputs((prev) => {
+      if (prev.length === 1) {
+        const only = prev[0];
+        if (only.previewUrl) {
+          URL.revokeObjectURL(only.previewUrl);
+        }
+        return [createImageRow()];
+      }
+
+      const target = prev.find((img) => img.id === id);
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+
+      return prev.filter((img) => img.id !== id);
+    });
+  };
+
+  const handleOpenPreview = (url: string) => {
+    if (openImage) {
+      openImage(url);
+      return;
+    }
+
+    window.open(url, "_blank");
+  };
+
+  const resetForm = () => {
+    imageInputs.forEach((img) => {
+      if (img.previewUrl) {
+        URL.revokeObjectURL(img.previewUrl);
+      }
     });
 
-    setImagePreviews(prev => {
-      const newPreviews = [...prev];
-      if (newPreviews[index]) {
-        URL.revokeObjectURL(newPreviews[index]!);
-      }
-      newPreviews[index] = URL.createObjectURL(file);
-      return newPreviews;
+    setFormData({
+      firstName: resolvedFirstName,
+      lastName: resolvedLastName,
+      mobile: resolvedMobile,
+      landline: resolvedLandline,
+      email: resolvedEmail,
+      message: "",
+      address: resolvedAddress,
+      recurrenceFrequency: "one_off",
     });
+
+    setImageInputs(createInitialImageRows());
+    setServices((prev) => prev.map((s) => ({ ...s, selected: false })));
+    setPreferredContactMethod("email");
+    setIsServicesOpen(false);
+    setFormNotice(null);
+    setImageInputKey((prev) => prev + 1);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setFormNotice(null);
 
-    // Validation
-    if (!formData.mobile && !formData.landline) {
-
-      alert("Please provide at least one contact number.");
+    if (!formData.mobile.trim() && !formData.landline.trim()) {
+      alert("Please provide at least a mobile or landline number.");
       setIsSubmitting(false);
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-
+    if (!emailRegex.test(formData.email.trim())) {
       alert("Please enter a valid email address.");
       setIsSubmitting(false);
       return;
     }
 
-    if (!formData.address) {
-
+    if (!formData.address.trim()) {
       alert("Please enter your address.");
       setIsSubmitting(false);
       return;
     }
 
     const selectedServices = services
-      .filter(s => s.selected)
-      .map(s => ({
-        value: s.value,
+      .filter((s) => s.selected)
+      .map((s) => ({
+        service_uuid: s.uuid,
+        code: s.code,
         label: s.label,
-        unit_price: 0,
+        description: s.description || null,
         quantity: 1,
+        unit_price: 0,
+        line_total: 0,
       }));
 
     if (selectedServices.length === 0) {
@@ -235,31 +528,50 @@ export default function ContactPage(props: Props) {
       return;
     }
 
-    const hasAtLeastOneImage = imageFiles.some(file => file !== null);
+    const filledImageRows = imageInputs.filter((img) => img.file !== null);
+    const hasAtLeastOneImage = filledImageRows.length > 0;
+
     if (!hasAtLeastOneImage) {
-      alert("Please upload at least one image before submitting.");
+      alert("Please upload at least one image.");
       setIsSubmitting(false);
       return;
     }
-    try {
-      // 1 Upload images to Supabase
-      const uploadedImages = await Promise.all(
-        imageFiles.map(async (file, index) => {
-          if (!file) return null;
-          const fileName = `quotes/${Date.now()}_${file.name}`;
 
-          const { data, error } = await supabase.storage
-            .from('quote-images')
-            .upload(fileName, file);
+    if (filledImageRows.length > MAX_IMAGE_UPLOADS) {
+      alert(`You can upload a maximum of ${MAX_IMAGE_UPLOADS} images.`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const selectedRequireImages = services
+      .filter((s) => s.selected)
+      .some((s) => s.requires_images);
+
+    if (selectedRequireImages && !hasAtLeastOneImage) {
+      alert("Please upload at least one image for the selected service.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const uploadedImages = await Promise.all(
+        filledImageRows.map(async (img, index) => {
+          if (!img.file) return null;
+
+          const fileName = `quotes/${Date.now()}_${index}_${img.file.name}`;
+
+          const { error } = await supabase.storage
+            .from("quote-images")
+            .upload(fileName, img.file);
 
           if (error) throw error;
 
           const url = supabase.storage
-            .from('quote-images')
+            .from("quote-images")
             .getPublicUrl(fileName).data.publicUrl;
 
           return {
-            label: formData.images[index].label || `Image ${index + 1}`,
+            label: img.label.trim() || `Image ${index + 1}`,
             url,
           };
         })
@@ -267,57 +579,44 @@ export default function ContactPage(props: Props) {
 
       const imagesPayload = uploadedImages.filter(Boolean);
 
-      // 2Build payload with uploaded image URLs
       const payload = {
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        mobile: formData.mobile,
-        landline: formData.landline,
+        first_name: formData.firstName.trim(),
+        last_name: formData.lastName.trim(),
+        mobile: formData.mobile.trim(),
+        landline: formData.landline.trim(),
         preferred_contact_method: preferredContactMethod,
-        email: formData.email,
-        message: formData.message,
-        address: formData.address,
+        email: formData.email.trim().toLowerCase(),
+        message: formData.message.trim(),
+        address: formData.address.trim(),
+        recurrence_frequency: formData.recurrenceFrequency,
         services: selectedServices,
         images: imagesPayload,
       };
 
-      //  Send payload to backend
       const res = await fetch(`/api/quotes/create`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
-      console.log({ res })
+
+      const responseData = await res.json().catch(() => null);
+
       if (res.ok) {
         toast.success("Message sent successfully!");
-        // Reset form, previews, and services
-        setFormData({
-          firstName: "",
-          lastName: "",
-          mobile: "",
-          landline: "",
-          email: "",
-          message: "",
-          address: "",
-          images: [
-            { label: "", url: "" },
-            { label: "", url: "" },
-            { label: "", url: "" },
-            { label: "", url: "" },
-          ],
-        });
-        setImageFiles([null, null, null, null]);
-        setImagePreviews([null, null, null, null]);
-        setServices(prev => prev.map(s => ({ ...s, selected: false })));
-        clearAutocompleteInput();
-        setImageInputKey(prev => prev + 1);
-        console.log("before reload")
-        // setTimeout(() => {
-        //   window.location.reload();
-        // }, 1500); // optional delay to show toast first
+        resetForm();
       } else {
-        const errorData = await res.json();
-        alert(errorData?.error || "Failed to send message. Please try again.");
+        if (responseData?.code === "CUSTOMER_BLACKLISTED") {
+          setFormNotice(
+            "Thank you for your enquiry. We are unable to process your request through the online form at this time. Please contact the business directly and our team will be happy to assist you further."
+          );
+          return;
+        }
+
+        alert(
+          responseData?.error || "Failed to send message. Please try again."
+        );
       }
     } catch (err) {
       console.error(err);
@@ -327,50 +626,51 @@ export default function ContactPage(props: Props) {
     }
   };
 
-  if (loading) {
+  if (loading || customerLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
       </div>
     );
   }
-  if (loadError) return <div>Map failed to load</div>;
-  if (!isLoaded) return (
-    <div className="flex justify-center items-center h-screen">
-      <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
-    </div>
-  );
 
   return (
     <div className="relative min-h-screen w-full flex flex-col items-center justify-start text-black pb-5">
-      {/* Background Image */}
       <div
         className="absolute inset-0 bg-cover bg-center z-0"
         style={{ backgroundImage: "url('/images/contact_us_1.png')" }}
       />
-      {/* Dark overlay */}
       <div className="absolute inset-0 bg-black/50 z-0"></div>
-      {/* Main content wrapper */}
+
       <div className="relative z-10 w-full flex flex-col items-center pt-20 px-4">
-        {/* Header text */}
         <div className="text-center space-y-2 max-w-2xl">
-          <h1 className="text-3xl md:text-4xl font-bold mb-6 text-white">Contact Us</h1>
+          <h1 className="text-3xl md:text-4xl font-bold mb-6 text-white">
+            Contact Us
+          </h1>
           <p className="text-xl italic font-bold md:text-base text-gray-200 mb-4">
-            Our team strives to reply to all messages within 2 business working days.
+            Our team strives to reply to all messages within 2 business working
+            days.
           </p>
           <p className="text-lg font-semibold text-gray-100 pb-6 sm:text-base">
             For an accurate quote, please send images.
           </p>
         </div>
+
         <div className="w-full max-w-lg">
           <Header />
         </div>
+
         <form
           onSubmit={handleSubmit}
           autoComplete="off"
-          className="w-full max-w-lg bg-white/95  rounded-b-sm shadow space-y-4 pb-5 px-6 pt-5"
+          className="w-full max-w-lg bg-white/85 rounded-b-sm shadow space-y-4 pb-5 px-6 pt-5"
         >
-          {/* NAME */}
+          {formNotice && (
+            <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {formNotice}
+            </div>
+          )}
+
           <div className="flex flex-row gap-4">
             <div className="w-1/2">
               <label htmlFor="firstName" className="block font-medium mb-1 py-2">
@@ -382,11 +682,12 @@ export default function ContactPage(props: Props) {
                 autoComplete="off"
                 value={formData.firstName}
                 onChange={handleChange}
-                className="input-border w-full border px-3 py-2 rounded"
-                placeholder="Enter your first Name"
+                className="input-border w-full border px-3 py-2 rounded bg-white"
+                placeholder="Enter your first name"
                 required
               />
             </div>
+
             <div className="w-1/2">
               <label htmlFor="lastName" className="block font-medium mb-1 py-2">
                 Last Name
@@ -397,20 +698,25 @@ export default function ContactPage(props: Props) {
                 autoComplete="off"
                 value={formData.lastName}
                 onChange={handleChange}
-                className="input-border w-full border px-3 py-2 rounded"
+                className="input-border w-full border px-3 py-2 rounded bg-white"
                 placeholder="Enter your last name"
                 required
               />
             </div>
           </div>
-          {/* ADDRESS AUTOCOMPLETE */}
-          <div className="relative">
-            <label htmlFor="address" className="block font-medium mb-1 py-2">
-              Address
-            </label>
-            <div ref={autocompleteContainerRef} className="gmp-place-autocomplete" />
-          </div>
-          {/* PHONE */}
+
+          <GoogleAddressAutocomplete
+            label="Address"
+            value={formData.address}
+            onSelect={(address) =>
+              setFormData((prev) => ({
+                ...prev,
+                address,
+              }))
+            }
+            helperText="Start typing and select your address from Google suggestions."
+          />
+
           <div className="flex flex-col">
             <div className="flex flex-row gap-4">
               <div className="w-1/2">
@@ -421,10 +727,11 @@ export default function ContactPage(props: Props) {
                   autoComplete="off"
                   value={formData.mobile}
                   onChange={handleChange}
-                  className="input-border w-full border px-3 py-2 rounded"
+                  className="input-border w-full border px-3 py-2 rounded bg-white"
                   placeholder="Mobile number"
                 />
               </div>
+
               <div className="w-1/2">
                 <label className="block font-medium mb-1 py-2">Landline</label>
                 <input
@@ -433,22 +740,27 @@ export default function ContactPage(props: Props) {
                   autoComplete="off"
                   value={formData.landline}
                   onChange={handleChange}
-                  className="input-border w-full border px-3 py-2 rounded"
+                  className="input-border w-full border px-3 py-2 rounded bg-white"
                   placeholder="Landline number"
                 />
               </div>
             </div>
+
             <span className="text-xs italic py-3">
-              Only one contact number is required and add area code for landline, but you may add both if you’d like.
+              At least one contact number is required and add area code for
+              landline, but you may add both if you’d like.
             </span>
+
             <div className="relative flex flex-col pt-1">
               <label className="py-2 mb-1">Preferred contact method</label>
               <select
                 value={preferredContactMethod}
                 onChange={(e) =>
-                  setPreferredContactMethod(e.target.value as "mobile" | "landline" | "email")
+                  setPreferredContactMethod(
+                    e.target.value as "mobile" | "landline" | "email"
+                  )
                 }
-                className="input-border w-full border py-3 rounded hover:cursor-pointer px-3"
+                className="input-border w-full border py-3 rounded hover:cursor-pointer px-3 bg-white"
               >
                 <option value="mobile">Mobile</option>
                 <option value="landline">Landline</option>
@@ -456,7 +768,7 @@ export default function ContactPage(props: Props) {
               </select>
             </div>
           </div>
-          {/* EMAIL */}
+
           <div>
             <label htmlFor="email" className="block font-medium mb-1 py-2">
               Email
@@ -468,12 +780,60 @@ export default function ContactPage(props: Props) {
               autoComplete="off"
               value={formData.email}
               onChange={handleChange}
-              className="input-border w-full border px-3 py-2 rounded"
+              className="input-border w-full border px-3 py-2 rounded bg-white"
               placeholder="Enter your email"
               required
             />
           </div>
-          {/* MESSAGE */}
+
+          <div>
+            <label className="block font-medium mb-2 py-2">
+              How often would you like the service?
+            </label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {RECURRENCE_OPTIONS.map((option) => {
+                const isSelected =
+                  formData.recurrenceFrequency === option.value;
+
+                return (
+                  <label
+                    key={option.value}
+                    className={`rounded border px-4 py-3 bg-white transition hover:cursor-pointer ${
+                      isSelected
+                        ? "border-green-700 ring-1 ring-green-700"
+                        : "border-gray-300 hover:border-gray-400"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        name="recurrenceFrequency"
+                        value={option.value}
+                        checked={isSelected}
+                        onChange={() => handleRecurrenceChange(option.value)}
+                        className="mt-1 hover:cursor-pointer"
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium text-sm sm:text-base">
+                          {option.label}
+                        </span>
+                        <span className="text-xs sm:text-sm text-gray-600">
+                          {option.description}
+                        </span>
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <p className="text-xs italic text-gray-600 pt-2">
+              Choose one-off for a single visit, or select a recurring option
+              for regular ongoing work.
+            </p>
+          </div>
+
           <div>
             <label htmlFor="message" className="block font-medium mb-1 py-2">
               Message
@@ -484,68 +844,217 @@ export default function ContactPage(props: Props) {
               autoComplete="off"
               value={formData.message}
               onChange={handleChange}
-              className="input-border w-full border px-3 py-2 rounded resize-none overflow-y-scroll overflow-x-hidden"
-              placeholder="Write your message"
+              className="input-border w-full border px-3 py-2 rounded resize-none bg-white overflow-y-scroll overflow-x-hidden"
+              placeholder="Write any additional details here..."
               rows={5}
               required
             />
           </div>
-          {/* SERVICES */}
-          <div className="space-y-2">
-            <label className="text-lg py-3">Select Services</label>
-            <div className="flex flex-wrap gap-2">
-              {services.map((service, index) => (
-                <label key={service.value} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={service.selected}
-                    onChange={() => handleServiceChange(index)}
-                  />
-                  {service.label}
-                </label>
-              ))}
-            </div>
+
+          <div className="space-y-2" ref={servicesDropdownRef}>
+            <label className="text-lg py-1 block">Select Services</label>
+
+            {isLoadingServices ? (
+              <div className="text-sm text-gray-600">Loading services...</div>
+            ) : services.length === 0 ? (
+              <div className="text-sm text-red-600">
+                No services available right now.
+              </div>
+            ) : (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsServicesOpen((prev) => !prev)}
+                  className="w-full border border-gray-300 rounded px-4 py-3 bg-white text-left flex items-center justify-between hover:border-gray-400 hover:cursor-pointer"
+                >
+                  <span className="truncate pr-4 text-sm sm:text-base">
+                    {selectedServicesSummary}
+                  </span>
+                  <span className="text-sm text-gray-500 shrink-0">
+                    {isServicesOpen
+                      ? "Close"
+                      : selectedServicesCount > 0
+                      ? `${selectedServicesCount} selected`
+                      : "Open"}
+                  </span>
+                </button>
+
+                {isServicesOpen && (
+                  <div className="absolute z-30 mt-2 w-full max-h-80 overflow-y-auto rounded border border-gray-200 bg-white shadow-lg p-3 space-y-4">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <div className="text-sm font-medium text-gray-700">
+                        {selectedServicesCount > 0
+                          ? `${selectedServicesCount} service${
+                              selectedServicesCount > 1 ? "s" : ""
+                            } selected`
+                          : "Choose one or more services"}
+                      </div>
+
+                      {selectedServicesCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleClearAllServices}
+                          className="text-sm font-medium text-red-600 hover:text-red-700 hover:underline"
+                        >
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+
+                    {groupedServices.map(([category, items]) => (
+                      <div key={category} className="space-y-2">
+                        <div className="text-sm font-semibold uppercase tracking-wide text-gray-500 border-b pb-1">
+                          {category}
+                        </div>
+
+                        <div className="space-y-2">
+                          {items.map((service) => {
+                            const serviceIndex = services.findIndex(
+                              (s) => s.uuid === service.uuid
+                            );
+
+                            return (
+                              <label
+                                key={service.uuid}
+                                className="group flex items-start gap-3 rounded border border-gray-100 px-3 py-2 hover:bg-green-700 hover:cursor-pointer transition"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={service.selected}
+                                  onChange={() =>
+                                    handleServiceChange(serviceIndex)
+                                  }
+                                  className="mt-1 hover:cursor-pointer"
+                                />
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-sm sm:text-base group-hover:text-white">
+                                    {service.label}
+                                  </span>
+                                  {service.description && (
+                                    <span className="text-xs sm:text-sm text-gray-600 group-hover:text-gray-200">
+                                      {service.description}
+                                    </span>
+                                  )}
+                                  {service.requires_images && (
+                                    <span className="text-xs text-green-700 pt-1 group-hover:text-green-200">
+                                      Images recommended
+                                    </span>
+                                  )}
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          {/* IMAGES */}
+
           <div className="space-y-4">
             <div className="font-semibold">Upload Images</div>
-            {formData.images.map((img, index) => (
-              <div key={index} className="flex flex-col sm:flex-row items-center gap-4">
+            <p className="text-xs italic text-gray-700">
+              Please upload at least one image. Maximum {MAX_IMAGE_UPLOADS}{" "}
+              images.
+            </p>
+
+            <div className="text-xs text-gray-600">
+              {imageInputs.length} / {MAX_IMAGE_UPLOADS} image slots used
+            </div>
+
+            {imageInputs.map((img, index) => (
+              <div
+                key={img.id}
+                className="rounded border border-gray-200 p-3 bg-white/70 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium text-gray-700">
+                    Image {index + 1}
+                  </div>
+
+                  {imageInputs.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImageSlot(img.id)}
+                      className="text-sm font-medium text-red-600 hover:text-red-700 hover:underline hover:cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
                 <input
                   type="text"
                   placeholder={`Image ${index + 1} eg front yard`}
                   value={img.label}
-                  onChange={(e) => handleImageLabelChange(index, e.target.value)}
-                  className="input-border w-full sm:w-1/2 border px-3 py-2 rounded"
+                  onChange={(e) => handleImageLabelChange(img.id, e.target.value)}
+                  className="input-border w-full border px-3 py-2 rounded"
                 />
+
                 <input
-                  key={imageInputKey + index}
+                  key={`${imageInputKey}_${img.id}`}
                   type="file"
                   accept="image/*"
                   onChange={(e) =>
-                    handleImageFileChange(index, e.target.files?.[0] || null)
+                    handleImageFileChange(img.id, e.target.files?.[0] || null)
                   }
-                  className="input-border w-full sm:w-1/2 border px-3 py-2 rounded hover:cursor-pointer"
+                  className="input-border w-full border px-3 py-2 rounded hover:cursor-pointer"
                 />
-                {imagePreviews[index] && (
-                  <div className="w-20 h-14 overflow-hidden rounded bg-gray-100 py-2">
-                    <img
-                      src={imagePreviews[index]!}
-                      alt={`Preview ${index + 1}`}
-                      className="w-full h-full rounded object-cover"
-                    />
+
+                {img.previewUrl && (
+                  <div className="space-y-2 block w-22 h-24 overflow-hidden rounded">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenPreview(img.previewUrl!)}
+                      className="block w-22 h-16 overflow-hidden rounded bg-gray-100 hover:opacity-90 transition hover:cursor-pointer"
+                    >
+                      <img
+                        src={img.previewUrl}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-full rounded object-cover"
+                      />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenPreview(img.previewUrl!)}
+                      className="text-xs text-green-700 hover:text-green-900 hover:underline hover:cursor-pointer"
+                    >
+                      Click to enlarge
+                    </button>
                   </div>
                 )}
               </div>
             ))}
+
+            <button
+              type="button"
+              onClick={handleAddImageSlot}
+              disabled={!canAddMoreImages}
+              className={`w-full border border-dashed py-2 rounded transition ${
+                canAddMoreImages
+                  ? "border-green-700 text-green-700 hover:bg-green-50 hover:cursor-pointer"
+                  : "border-gray-300 text-gray-400 cursor-not-allowed bg-gray-50"
+              }`}
+            >
+              {canAddMoreImages
+                ? "+ Add another image"
+                : `Maximum ${MAX_IMAGE_UPLOADS} images reached`}
+            </button>
           </div>
-          {/* SUBMIT BUTTON */}
+
           <div className="py-5">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isLoadingServices}
               className={`w-full flex items-center justify-center gap-2 py-2 rounded transition
-                ${isSubmitting ? "bg-green-600 cursor-not-allowed" : "bg-green-700 hover:bg-green-900 hover:cursor-pointer"}
+                ${
+                  isSubmitting || isLoadingServices
+                    ? "bg-green-600 cursor-not-allowed"
+                    : "bg-green-700 hover:bg-green-900 hover:cursor-pointer"
+                }
                 text-white`}
             >
               {isSubmitting ? "Sending..." : "Send Message"}
@@ -555,5 +1064,4 @@ export default function ContactPage(props: Props) {
       </div>
     </div>
   );
-
 }

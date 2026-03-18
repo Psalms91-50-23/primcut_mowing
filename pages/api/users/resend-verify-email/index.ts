@@ -16,7 +16,7 @@ export default async function handler(
 
   try {
     const backendRes = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/resend-verify-email`,
+      `${process.env.BACKEND_URL}/api/users/resend-verify-email`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

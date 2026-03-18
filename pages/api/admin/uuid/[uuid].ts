@@ -1,13 +1,13 @@
-// pages/api/quotes/admin/uuid/[quote_uuid].ts
+// pages/api/quotes/admin/uuid/[uuid].ts
 import type { NextApiRequest, NextApiResponse } from "next";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { quote_uuid } = req.query;
+  const { uuid } = req.query;
   
   if (req.method === "PATCH") {
     try {
       const backendRes = await fetch(
-        `${process.env.BACKEND_URL}/api/quotes/uuid/${quote_uuid}`,
+        `${process.env.BACKEND_URL}/api/quotes/uuid/${uuid}`,
         {
           method: "PATCH",
           headers: { 
