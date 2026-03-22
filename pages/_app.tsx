@@ -9,7 +9,7 @@ import { Toaster } from "react-hot-toast";
 import { setupShadowDOMStyling } from "../lib/gmpShadowStyling";
 import Script from "next/script";
 import { CustomerProvider } from "@/context/CustomerContext";
-
+import Head from "next/head";
 function GlobalImageModal() {
   const { activeImage, closeImage } = useUI();
 
@@ -52,6 +52,10 @@ function HappyProperty({ Component, pageProps }: AppProps) {
               src={`https://www.google.com/recaptcha/api.js?render=${process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY}`}
               strategy="beforeInteractive"
             />
+            {/* remove below after all is finalized and remove robots.txt file in public folder */}
+            <Head>
+              <meta name="robots" content="noindex, nofollow" />
+            </Head>
             <div className="flex justify-center">
               <NavBar />
               <div
