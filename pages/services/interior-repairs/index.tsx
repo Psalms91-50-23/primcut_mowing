@@ -4,136 +4,158 @@ import Link from "next/link";
 import {
   ArrowRight,
   CheckCircle2,
+  Hammer,
+  Home,
+  Paintbrush2,
   ShieldCheck,
-  Truck,
-  Package,
-  Trash2,
-  Warehouse,
+  Wrench,
 } from "lucide-react";
 
 const highlights = [
-  "Junk and old furniture removal",
-  "Garage cleanups and construction waste removal",
-  "Pickup and delivery for large items",
-  "Practical help for homes, rentals, and property tidy-ups",
+  "Door, wall, and general interior repairs",
+  "Minor carpentry and practical timber fixes",
+  "Paint touch ups and sealant replacement",
+  "Reliable repair work for homes and rentals",
 ];
 
-const serviceItems = [
+const repairServices = [
   {
-    title: "Junk / Old Furniture Removal",
+    title: "Door Repair",
     description:
-      "Removal and disposal of unwanted furniture and general junk items.",
-    icon: Trash2,
-    note: "Useful for household clear-outs and bulky unwanted items.",
+      "Repair or adjustment of doors, hinges, handles, and latches.",
+    icon: DoorIcon,
   },
   {
-    title: "Garage Cleanup",
-    description:
-      "Removal of unwanted items and cleanup of garage spaces.",
-    icon: Warehouse,
-    note: "Ideal for reclaiming space and tidying cluttered storage areas.",
+    title: "Interior Repairs",
+    description: "General interior repairs and maintenance.",
+    icon: Home,
   },
   {
-    title: "Construction Waste Removal",
-    description:
-      "Removal and disposal of renovation or building waste.",
-    icon: Trash2,
-    note: "Suitable for cleanup after repair, renovation, or property work.",
+    title: "Minor Carpentry",
+    description: "Minor carpentry and timber repair work.",
+    icon: Hammer,
   },
   {
-    title: "Pickup & Delivery",
+    title: "Paint Touch Ups",
+    description: "Minor paint touch-ups, patching, and surface refresh work.",
+    icon: Paintbrush2,
+  },
+  {
+    title: "Sealant Replacement",
     description:
-      "Pickup and delivery of items between locations, including Trade Me purchases, furniture transport, and general item delivery.",
-    icon: Truck,
-    note: "Good for large items that need practical transport help.",
+      "Replacement of old or damaged silicone and sealants in kitchens, bathrooms, and wet areas.",
+    icon: ShieldCheck,
+  },
+  {
+    title: "Wall Repairs",
+    description: "Wall patching, plastering, and repair work.",
+    icon: Wrench,
   },
 ];
 
 const includedItems = [
-  "Removal of unwanted items, furniture, and general junk",
-  "Garage and storage area tidy-up support",
-  "Construction or renovation waste removal",
-  "Pickup and delivery help for bulky or awkward items",
+  "Practical interior repair work for common household issues",
+  "Suitable for owner-occupied homes, rentals, and maintenance jobs",
+  "Helpful for wear and tear, small damage, and presentation improvements",
+  "Quoted based on the scope, access, and work required",
 ];
 
 const whyChooseUs = [
-  "Useful for homeowners, landlords, tenants, and property managers",
-  "Practical support for clear-outs, tidy-ups, and moving items",
-  "Straightforward quoting based on job scope and access",
-  "Reliable service focused on getting the job done efficiently",
+  "Ideal for getting small interior issues fixed properly",
+  "Good fit for landlords, homeowners, and rental upkeep",
+  "Straightforward quoting and clear communication",
+  "Practical, tidy work focused on real maintenance needs",
 ];
 
 const faqs = [
   {
-    question: "Do I need to send photos for junk removal quotes?",
+    question: "Do I need to send photos for interior repair quotes?",
     answer:
-      "Photos are helpful for removal jobs, especially when there are bulky items, large loads, or site access considerations. They help make quoting more accurate.",
+      "Photos can help speed up quoting, but they are not always required for interior repair jobs based on your current service setup.",
   },
   {
-    question: "Can you remove old furniture and general rubbish together?",
+    question: "Can multiple small repairs be done in one visit?",
     answer:
-      "Yes, mixed removal jobs can often be handled together depending on the type and volume of items involved.",
+      "Yes, bundling a few smaller interior jobs together is often a practical option depending on the work involved.",
   },
   {
-    question: "Is pickup and delivery only for furniture?",
+    question: "Is this suitable for rental property maintenance?",
     answer:
-      "No. It can also suit Trade Me purchases, bulky household items, and general item transport between locations.",
+      "Yes. Interior repair work is well suited to rental maintenance, pre-tenancy tidy-ups, and general upkeep between occupants.",
   },
 ];
 
-export default function JunkRemovalPage() {
+function DoorIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M6 21V4.8a1 1 0 0 1 .76-.97l8-1.8A1 1 0 0 1 16 3v18" />
+      <path d="M6 21h12" />
+      <circle cx="13" cy="12" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export default function InteriorRepairsPage() {
   return (
     <>
       <Head>
         <title>
-          Junk Removal & Delivery Lower Hutt & Upper Hutt | Happy Property
+          Interior Repairs Lower Hutt & Upper Hutt | Happy Property
         </title>
         <meta
           name="description"
-          content="Junk removal and delivery in Lower Hutt and Upper Hutt, including furniture removal, garage cleanups, construction waste removal, and pickup & delivery."
+          content="Interior repairs in Lower Hutt and Upper Hutt, including door repairs, wall repairs, minor carpentry, paint touch ups, and sealant replacement."
         />
 
         <meta
           property="og:title"
-          content="Junk Removal & Delivery in Lower Hutt & Upper Hutt | Happy Property"
+          content="Interior Repairs in Lower Hutt & Upper Hutt | Happy Property"
         />
         <meta
           property="og:description"
-          content="Furniture removal, garage cleanup, construction waste removal, and pickup & delivery across Lower Hutt and Upper Hutt."
+          content="Practical interior repair work for homes and rentals, including doors, walls, carpentry, paint touch ups, and sealant replacement."
         />
         <meta
           property="og:url"
-          content="https://happyproperty.co.nz/services/junk-removal"
+          content="https://happyproperty.co.nz/services/interior-repairs"
         />
         <meta
           property="og:image"
-          content="https://happyproperty.co.nz/images/junk-removal.jpg"
+          content="https://happyproperty.co.nz/images/interior-repairs.jpg"
         />
         <meta property="og:type" content="website" />
 
         <meta name="twitter:card" content="summary_large_image" />
         <meta
           name="twitter:title"
-          content="Junk Removal & Delivery in Lower Hutt & Upper Hutt | Happy Property"
+          content="Interior Repairs in Lower Hutt & Upper Hutt | Happy Property"
         />
         <meta
           name="twitter:description"
-          content="Practical junk removal, furniture removal, waste cleanup, and pickup & delivery services."
+          content="Reliable interior repairs for homes and rentals across Lower Hutt and Upper Hutt."
         />
         <meta
           name="twitter:image"
-          content="https://happyproperty.co.nz/images/junk-removal.jpg"
+          content="https://happyproperty.co.nz/images/interior-repairs.jpg"
         />
       </Head>
 
       <main className="bg-white text-slate-900">
         {/* Hero */}
         <section className="relative isolate overflow-hidden bg-black group">
-          <div className="absolute inset-0 flex items-center justify-center bg-black overflow-hidden">
+          <div className="absolute inset-0 flex items-center justify-center bg-black">
             <img
-              src="/images/junk_and_delivery.png"
-              alt="Junk removal and delivery services"
-              className="h-full w-full object-cover md:object-contain transition-transform duration-700 group-hover:scale-105"
+              src="/images/interior_touchup.png"
+              alt="Interior repairs service"
+              className="h-full w-full object-contain transition duration-700 group-hover:scale-105"
             />
           </div>
 
@@ -142,18 +164,18 @@ export default function JunkRemovalPage() {
           <div className="relative mx-auto flex min-h-[540px] max-w-7xl items-center px-6 py-16 sm:min-h-[620px] sm:px-8 lg:px-12">
             <div className="max-w-3xl text-white">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur-sm">
-                <Truck className="h-4 w-4" />
-                Removal & Delivery Services
+                <Wrench className="h-4 w-4" />
+                Interior Repair Services
               </div>
 
               <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                Junk removal and delivery for practical property needs
+                Interior repairs that keep your property practical and presentable
               </h1>
 
               <p className="mt-5 max-w-2xl text-base leading-7 text-white/90 sm:text-lg">
-                Help with furniture removal, garage cleanup, waste removal, and
-                item pickup or delivery. A practical service for homes, rentals,
-                and property tidy-ups across the Hutt Valley.
+                Straightforward interior repair work for common maintenance needs,
+                wear and tear, and small repair jobs around the home. Suitable
+                for owner-occupied properties, rentals, and ongoing upkeep.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -194,20 +216,20 @@ export default function JunkRemovalPage() {
         >
           <div className="max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Service Overview
+              Interior Repair Services
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-              Services covered on this page
+              Current services in this category
             </h2>
-            <p className="mt-4 text-base leading-7 text-slate-600">
-              This page is designed to cover your broader junk removal and
-              delivery offering, based on the services currently present in your
-              table.
-            </p>
+          <p className="mt-3 leading-7 text-slate-700">
+            Send through the job details and any useful photos if you have
+            them. Photos can help, but they are not required for this
+            service category based on your current setup.
+        </p>
           </div>
 
-          <div className="mt-10 grid gap-6 md:grid-cols-2">
-            {serviceItems.map((service) => {
+          <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {repairServices.map((service) => {
               const Icon = service.icon;
               return (
                 <div
@@ -221,9 +243,6 @@ export default function JunkRemovalPage() {
                   <h3 className="mt-4 text-xl font-semibold">{service.title}</h3>
                   <p className="mt-3 text-sm leading-6 text-slate-600">
                     {service.description}
-                  </p>
-                  <p className="mt-3 text-sm leading-6 text-slate-500">
-                    {service.note}
                   </p>
                 </div>
               );
@@ -239,7 +258,7 @@ export default function JunkRemovalPage() {
                 What’s Included
               </p>
               <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-                Practical help with clearing out or moving items
+                Practical help for common interior repair jobs
               </h2>
 
               <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -258,7 +277,7 @@ export default function JunkRemovalPage() {
                   Why Choose Happy Property
                 </p>
                 <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-                  A useful service for clear-outs, cleanup, and item transport
+                  Interior work handled with a maintenance-first approach
                 </h2>
 
                 <div className="mt-8 grid gap-4">
@@ -303,9 +322,10 @@ export default function JunkRemovalPage() {
             <aside className="space-y-6">
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
                 <h3 className="text-xl font-semibold">Quick Quote</h3>
-                <p className="mt-3 leading-7 text-slate-700">
-                  Send through the item list, rough load size, pickup and dropoff
-                  details if needed, and photos where helpful for faster quoting.
+                <p className="mt-4 text-base leading-7 text-slate-600">
+                    This page reflects your current interior repairs category, covering
+                    general repair work, minor carpentry, touch-up work, and common
+                    maintenance jobs inside the home.
                 </p>
 
                 <Link
@@ -317,29 +337,19 @@ export default function JunkRemovalPage() {
               </div>
 
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <Package className="mt-0.5 h-5 w-5 shrink-0 text-slate-700" />
-                  <div>
-                    <h3 className="text-lg font-semibold">Good For</h3>
-                    <p className="mt-2 leading-7 text-slate-700">
-                      Furniture removal, garage clear-outs, renovation cleanup,
-                      Trade Me pickups, and bulky item transport.
-                    </p>
-                  </div>
-                </div>
+                <h3 className="text-lg font-semibold">Best For</h3>
+                <p className="mt-3 leading-7 text-slate-700">
+                  General home upkeep, rental maintenance, pre-tenant touch-ups,
+                  and fixing smaller issues before they turn into bigger ones.
+                </p>
               </div>
 
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <Truck className="mt-0.5 h-5 w-5 shrink-0 text-slate-700" />
-                  <div>
-                    <h3 className="text-lg font-semibold">Areas Covered</h3>
-                    <p className="mt-2 leading-7 text-slate-700">
-                      Lower Hutt, Upper Hutt, and surrounding Wellington region
-                      service areas.
-                    </p>
-                  </div>
-                </div>
+                <h3 className="text-lg font-semibold">Areas Covered</h3>
+                <p className="mt-3 leading-7 text-slate-700">
+                  Lower Hutt, Upper Hutt, and surrounding Wellington region
+                  service areas.
+                </p>
               </div>
             </aside>
           </div>
@@ -349,11 +359,11 @@ export default function JunkRemovalPage() {
         <section className="bg-green-50">
           <div className="mx-auto max-w-7xl px-6 py-16 text-center sm:px-8 lg:px-12 lg:py-20">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Need items removed or delivered?
+              Need interior repairs sorted out?
             </h2>
             <p className="mx-auto mt-4 max-w-3xl text-lg leading-8 text-slate-700">
-              Get practical help with junk removal, furniture removal, garage
-              cleanup, construction waste, and pickup or delivery jobs.
+              Get help with practical interior repair work for homes, rentals,
+              and ongoing maintenance needs.
             </p>
             <Link
               href="/contact"

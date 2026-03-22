@@ -6,7 +6,6 @@ const routePermissions = [
   { prefix: "/dashboard/owner", allowedRoles: ["owner"] },
   { prefix: "/dashboard/employee", allowedRoles: ["employee"] },
   { prefix: "/dashboard/customer", allowedRoles: ["customer"] },
-  { prefix: "/dashboard/customer", allowedRoles: ["customer"] },
 ];
 
 function getDefaultDashboardByRole(role: string) {
@@ -48,9 +47,18 @@ export function proxy(request: NextRequest) {
     accessToken && !isTokenExpired(accessToken);
 
   // No session at all
+  // if (!hasValidAccessToken && !refreshToken) {
+  //   return NextResponse.redirect(new URL("/auth", request.url));
+  // }
   if (!hasValidAccessToken && !refreshToken) {
-    return NextResponse.redirect(new URL("/auth", request.url));
-  }
+  const authUrl = new URL("/auth", request.url);
+  authUrl.searchParams.set(
+    "redirect",
+    request.nextUrl.pathname + request.nextUrl.search
+  );
+
+  return NextResponse.redirect(authUrl);
+}
 
   // Redirect /dashboard → correct role dashboard
   if (pathname === "/dashboard" && role) {
@@ -79,9 +87,11 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/dashboard",
     "/dashboard/admin/:path*",
     "/dashboard/owner/:path*",
     "/dashboard/employee/:path*",
     "/dashboard/customer/:path*",
+    "/employee/:path*",
   ],
 };

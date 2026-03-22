@@ -66,7 +66,7 @@ const NavBar = () => {
   }, []);
 
   return (
-    <nav className="fixed top-0 flex w-full justify-between items-center p-6 bg-green-900 text-white z-50 shadow-md max-w-[1600px]"
+    <nav className="fixed top-0 flex w-full justify-between items-center p-4 bg-green-900 text-white z-50 shadow-md max-w-[1600px]"
     ref={navRef}
     >
       <h1 className="flex font-bold text-xl m-0 p-0 items-center"><span className="text-3xl m-0 p-0 translate-x-2">H</span>
@@ -77,7 +77,7 @@ const NavBar = () => {
 
       {/* Desktop Menu */}
       {!isMobile && (
-        <ul className="flex flex-row items-center space-x-6 text-base md:space-x-10">
+        <ul className="flex flex-row items-center space-x-5 text-base md:space-x-10">
           <li className="font-bold enlarge">
             <Link href="/">Home</Link>
           </li>
@@ -151,7 +151,7 @@ const NavBar = () => {
       >
         <div className="flex justify-between items-center p-4 border-b border-green-600">
           <div className="flex flex-col">
-            <h1 className="flex font-bold text-xl m-0 p-0 items-center"><span className="text-3xl m-0 p-0 translate-x-2">H</span><span className="font-bold text-3xl m-0 p-0 "><img src="/images/happy-house-1.png" alt="Happy Property Logo" className="w-12 h-12 inline-block ml-1" /></span><span className="font-bold text-3xl m-0 p-0">ppy Property</span></h1>
+            <h1 className="flex font-bold text-xl m-0 p-0 items-center"><span className="text-2xl m-0 p-0 translate-x-2">H</span><span className="font-bold text-2xl m-0 p-0 "><img src="/images/happy-house-1.png" alt="Happy Property Logo" className="w-12 h-12 inline-block ml-2" /></span><span className="font-bold text-2xl m-0 p-0">ppy Property</span></h1>
             <h2 className="text-xl font-bold pt-5">Menu</h2>
           </div>
           <button type="button" onClick={() => setMenuOpen(false)} className="text-3xl leading-none hover:cursor-pointer">

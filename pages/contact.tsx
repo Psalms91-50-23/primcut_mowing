@@ -630,6 +630,7 @@ export default function ContactPage(props: Props) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
+        <p className="text-gray-700 text-base font-medium">Loading ...</p>
       </div>
     );
   }
@@ -642,12 +643,12 @@ export default function ContactPage(props: Props) {
       />
       <div className="absolute inset-0 bg-black/50 z-0"></div>
 
-      <div className="relative z-10 w-full flex flex-col items-center pt-20 px-4">
-        <div className="text-center space-y-2 max-w-2xl">
+      <div className="relative z-10 w-full flex flex-col items-center pt-20 px-6 max-w-2xl">
+        <div className="relative w-full text-center space-y-2">
           <h1 className="text-3xl md:text-4xl font-bold mb-6 text-white">
             Contact Us
           </h1>
-          <p className="text-xl italic font-bold md:text-base text-gray-200 mb-4">
+          <p className="text-xl max-w-3xl italic font-bold md:text-xl text-gray-200 mb-4">
             Our team strives to reply to all messages within 2 business working
             days.
           </p>
@@ -655,15 +656,31 @@ export default function ContactPage(props: Props) {
             For an accurate quote, please send images.
           </p>
         </div>
+        <div className="w-full max-w-xl bg-white/90 rounded-lg p-4 mb-6 text-center shadow">
+          <p className="text-sm text-gray-700 mb-3">
+            Not ready to upload images or need a quick answer?
+          </p>
 
-        <div className="w-full max-w-lg">
+          <button
+            type="button"
+            onClick={() => window.location.href = "/inquiry"} // or toggle later
+            className="px-5 py-2 bg-black text-white font-semibold rounded hover:bg-black/95 transition hover:cursor-pointer"
+          >
+            Send a Quick Inquiry
+          </button>
+
+          <p className="text-xs text-gray-500 mt-2">
+            Simple message, no photos required
+          </p>
+        </div>
+        <div className="w-full max-w-xl">
           <Header />
         </div>
 
         <form
           onSubmit={handleSubmit}
           autoComplete="off"
-          className="w-full max-w-lg bg-white/85 rounded-b-sm shadow space-y-4 pb-5 px-6 pt-5"
+          className="w-full max-w-xl bg-white/85 rounded-b-sm shadow space-y-4 pb-5 px-6 pt-5"
         >
           {formNotice && (
             <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">

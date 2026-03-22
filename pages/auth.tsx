@@ -143,12 +143,13 @@ export default function AuthPage() {
       }
 
       toast.success("Logged in successfully!");
-      const redirectUrl =
-        typeof router.query.redirect === "string" && router.query.redirect.length > 0
-          ? router.query.redirect
-          : roleRedirectMap[loggedInUser.role] || "/";
-
-      router.replace(redirectUrl);
+      // const redirectUrl =
+      //   typeof router.query.redirect === "string" && router.query.redirect.length > 0
+      //     ? router.query.redirect
+      //     : roleRedirectMap[loggedInUser.role] || "/";
+      const redirectTo = getRedirectUrl(loggedInUser);
+      router.replace(redirectTo);
+      // router.replace(redirectUrl);
     } catch (err: any) {
       // -----------------------------
       // 🔥 V2 FALLBACK
@@ -167,13 +168,14 @@ export default function AuthPage() {
           }
 
           toast.success("Logged in successfully!");
-          const redirectUrl =
-            typeof router.query.redirect === "string" &&
-            router.query.redirect.length > 0
-              ? router.query.redirect
-              : roleRedirectMap[loggedInUser.role] || "/";
+          // const redirectUrl =
+          //   typeof router.query.redirect === "string" &&
+          //   router.query.redirect.length > 0
+          //     ? router.query.redirect
+          //     : roleRedirectMap[loggedInUser.role] || "/";
 
-          router.replace(redirectUrl);
+          // router.replace(redirectUrl);
+           router.replace(getRedirectUrl(loggedInUser));
         } catch {
           toast.error("Security verification failed.");
         }
@@ -186,6 +188,10 @@ export default function AuthPage() {
     }
   };
 
+  const getRedirectUrl = (loggedInUser: any) =>
+  typeof router.query.redirect === "string" && router.query.redirect.length > 0
+    ? router.query.redirect
+    : roleRedirectMap[loggedInUser.role] || "/";
   // -----------------------------
   // REGISTER WITH V3 + V2 FALLBACK
   // -----------------------------
