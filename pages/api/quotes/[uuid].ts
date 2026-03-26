@@ -9,9 +9,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const backendURL = process.env.BACKEND_URL;
   const cookieHeader = req.headers.cookie || "";
+  console.log({ uuid, action, cookieHeader });
 
   try {
-    let backendRes;
+    let backendRes: Response;
 
     switch (req.method) {
       case "GET":
@@ -55,6 +56,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       default:
         return res.status(405).json({ error: "Method Not Allowed" });
+    }
+
+    // forward set-cookie from backend to browser
+    const setCookie = backendRes.headers.get("set-cookie");
+    if (setCookie) {
+      res.setHeader("set-cookie", setCookie);
     }
 
     const contentType = backendRes.headers.get("content-type") || "";

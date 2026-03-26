@@ -41,6 +41,7 @@ type ServiceOption = {
   description?: string | null;
   category?: string | null;
   requires_images?: boolean;
+  urgent_allowed?: boolean;
   selected: boolean;
 };
 
@@ -100,6 +101,7 @@ export default function ContactPage(props: Props) {
   const [imageInputKey, setImageInputKey] = useState(0);
   const [isServicesOpen, setIsServicesOpen] = useState(false);
   const [formNotice, setFormNotice] = useState<string | null>(null);
+  const [isUrgent, setIsUrgent] = useState(false);
 
   const [formData, setFormData] = useState<FormDataType>({
     firstName: "",
@@ -140,6 +142,31 @@ export default function ContactPage(props: Props) {
         getSafeString(customer?.landline)
     ) || "";
   const resolvedAddress = getSafeString(customer?.address);
+
+  const selectedServices = useMemo(
+    () => services.filter((s) => s.selected),
+    [services]
+  );
+
+  const hasSelectedServices = selectedServices.length > 0;
+
+  const allSelectedAllowUrgent = useMemo(() => {
+    if (!hasSelectedServices) return false;
+    return selectedServices.every((s) => Boolean(s.urgent_allowed));
+  }, [selectedServices, hasSelectedServices]);
+
+  const hasMixedUrgentEligibility = useMemo(() => {
+    if (!hasSelectedServices) return false;
+
+    const hasUrgentAllowed = selectedServices.some((s) =>
+      Boolean(s.urgent_allowed)
+    );
+    const hasUrgentBlocked = selectedServices.some(
+      (s) => !Boolean(s.urgent_allowed)
+    );
+
+    return hasUrgentAllowed && hasUrgentBlocked;
+  }, [selectedServices, hasSelectedServices]);
 
   const selectedServicesSummary = useMemo(() => {
     const selected = services.filter((s) => s.selected);
@@ -211,103 +238,50 @@ export default function ContactPage(props: Props) {
     resolvedAddress,
   ]);
 
-  // useEffect(() => {
-  //   let isMounted = true;
-
-  //   const fetchServices = async () => {
-  //     try {
-  //       setIsLoadingServices(true);
-
-  //       const res = await fetch("/api/services", {
-  //         method: "GET",
-  //         credentials: "include",
-  //         headers: {
-  //           "Content-Type": "application/json",
-  //         },
-  //       });
-
-  //       const result = await res.json().catch(() => null);
-
-  //       if (!res.ok) {
-  //         throw new Error(result?.error || "Failed to load services");
-  //       }
-
-  //       const serviceRows = Array.isArray(result?.data) ? result.data : [];
-
-  //       const mappedServices: ServiceOption[] = serviceRows.map((service: any) => ({
-  //         uuid: service.uuid,
-  //         code: service.code,
-  //         label: service.label,
-  //         description: service.description ?? null,
-  //         category: service.category ?? null,
-  //         requires_images: Boolean(service.requires_images),
-  //         selected: false,
-  //       }));
-
-  //       if (isMounted) {
-  //         setServices(mappedServices);
-  //       }
-  //     } catch (error) {
-  //       console.error("Failed to fetch services:", error);
-  //       if (isMounted) {
-  //         setServices([]);
-  //         toast.error("Failed to load services. Please refresh the page.");
-  //       }
-  //     } finally {
-  //       if (isMounted) {
-  //         setIsLoadingServices(false);
-  //       }
-  //     }
-  //   };
-
-  //   fetchServices();
-
-  //   return () => {
-  //     isMounted = false;
-  //   };
-  // }, []);
-  
   useEffect(() => {
-  const fetchServices = async () => {
-    try {
-      setIsLoadingServices(true);
+    const fetchServices = async () => {
+      try {
+        setIsLoadingServices(true);
 
-      const res = await fetch("/api/services", {
-        method: "GET",
-      });
+        const res = await fetch("/api/services", {
+          method: "GET",
+        });
 
-      const result = await res.json();
+        const result = await res.json();
 
-      console.log("frontend /api/services result:", result);
+        console.log("frontend /api/services result:", result);
 
-      if (!res.ok) {
-        throw new Error(result?.error || "Failed to load services");
+        if (!res.ok) {
+          throw new Error(result?.error || "Failed to load services");
+        }
+
+        const serviceRows = Array.isArray(result?.data) ? result.data : [];
+
+        const mappedServices: ServiceOption[] = serviceRows.map(
+          (service: any) => ({
+            uuid: service.uuid,
+            code: service.code,
+            label: service.label,
+            description: service.description ?? null,
+            category: service.category ?? null,
+            requires_images: Boolean(service.requires_images),
+            urgent_allowed: Boolean(service.urgent_allowed),
+            selected: false,
+          })
+        );
+
+        setServices(mappedServices);
+      } catch (error) {
+        console.error("Failed to fetch services:", error);
+        setServices([]);
+        toast.error("Failed to load services. Please refresh the page.");
+      } finally {
+        setIsLoadingServices(false);
       }
+    };
 
-      const serviceRows = Array.isArray(result?.data) ? result.data : [];
-
-      const mappedServices: ServiceOption[] = serviceRows.map((service: any) => ({
-        uuid: service.uuid,
-        code: service.code,
-        label: service.label,
-        description: service.description ?? null,
-        category: service.category ?? null,
-        requires_images: Boolean(service.requires_images),
-        selected: false,
-      }));
-
-      setServices(mappedServices);
-    } catch (error) {
-      console.error("Failed to fetch services:", error);
-      setServices([]);
-      toast.error("Failed to load services. Please refresh the page.");
-    } finally {
-      setIsLoadingServices(false);
-    }
-  };
-
-  fetchServices();
-}, []);
+    fetchServices();
+  }, []);
 
   useEffect(() => {
     const handlePointerDownOutside = (event: Event) => {
@@ -345,6 +319,12 @@ export default function ContactPage(props: Props) {
     };
   }, [imageInputs]);
 
+  useEffect(() => {
+    if (!allSelectedAllowUrgent && isUrgent) {
+      setIsUrgent(false);
+    }
+  }, [allSelectedAllowUrgent, isUrgent]);
+
   const handleServiceChange = (index: number) => {
     if (formNotice) {
       setFormNotice(null);
@@ -368,6 +348,7 @@ export default function ContactPage(props: Props) {
     setServices((prev) =>
       prev.map((service) => ({ ...service, selected: false }))
     );
+    setIsUrgent(false);
   };
 
   const handleImageLabelChange = (id: string, value: string) => {
@@ -483,6 +464,7 @@ export default function ContactPage(props: Props) {
     setPreferredContactMethod("email");
     setIsServicesOpen(false);
     setFormNotice(null);
+    setIsUrgent(false);
     setImageInputKey((prev) => prev + 1);
   };
 
@@ -510,7 +492,7 @@ export default function ContactPage(props: Props) {
       return;
     }
 
-    const selectedServices = services
+    const selectedServicesPayload = services
       .filter((s) => s.selected)
       .map((s) => ({
         service_uuid: s.uuid,
@@ -522,7 +504,7 @@ export default function ContactPage(props: Props) {
         line_total: 0,
       }));
 
-    if (selectedServices.length === 0) {
+    if (selectedServicesPayload.length === 0) {
       alert("Please select at least one service.");
       setIsSubmitting(false);
       return;
@@ -530,12 +512,6 @@ export default function ContactPage(props: Props) {
 
     const filledImageRows = imageInputs.filter((img) => img.file !== null);
     const hasAtLeastOneImage = filledImageRows.length > 0;
-
-    if (!hasAtLeastOneImage) {
-      alert("Please upload at least one image.");
-      setIsSubmitting(false);
-      return;
-    }
 
     if (filledImageRows.length > MAX_IMAGE_UPLOADS) {
       alert(`You can upload a maximum of ${MAX_IMAGE_UPLOADS} images.`);
@@ -589,7 +565,8 @@ export default function ContactPage(props: Props) {
         message: formData.message.trim(),
         address: formData.address.trim(),
         recurrence_frequency: formData.recurrenceFrequency,
-        services: selectedServices,
+        urgent: isUrgent,
+        services: selectedServicesPayload,
         images: imagesPayload,
       };
 
@@ -656,6 +633,7 @@ export default function ContactPage(props: Props) {
             For an accurate quote, please send images.
           </p>
         </div>
+
         <div className="w-full max-w-xl bg-white/90 rounded-lg p-4 mb-6 text-center shadow">
           <p className="text-sm text-gray-700 mb-3">
             Not ready to upload images or need a quick answer?
@@ -663,7 +641,7 @@ export default function ContactPage(props: Props) {
 
           <button
             type="button"
-            onClick={() => window.location.href = "/inquiry"} // or toggle later
+            onClick={() => (window.location.href = "/inquiry")}
             className="px-5 py-2 bg-black text-white font-semibold rounded hover:bg-black/95 transition hover:cursor-pointer"
           >
             Send a Quick Inquiry
@@ -673,6 +651,7 @@ export default function ContactPage(props: Props) {
             Simple message, no photos required
           </p>
         </div>
+
         <div className="w-full max-w-xl">
           <Header />
         </div>
@@ -911,7 +890,7 @@ export default function ContactPage(props: Props) {
                         <button
                           type="button"
                           onClick={handleClearAllServices}
-                          className="text-sm font-medium text-red-600 hover:text-red-700 hover:underline"
+                          className="text-sm font-medium text-red-600 hover:text-red-700 hover:underline hover:cursor-pointer"
                         >
                           Clear all
                         </button>
@@ -947,14 +926,22 @@ export default function ContactPage(props: Props) {
                                   <span className="font-medium text-sm sm:text-base group-hover:text-white">
                                     {service.label}
                                   </span>
+
                                   {service.description && (
                                     <span className="text-xs sm:text-sm text-gray-600 group-hover:text-gray-200">
                                       {service.description}
                                     </span>
                                   )}
+
                                   {service.requires_images && (
                                     <span className="text-xs text-green-700 pt-1 group-hover:text-green-200">
                                       Images recommended
+                                    </span>
+                                  )}
+
+                                  {service.urgent_allowed && (
+                                    <span className="text-xs text-amber-700 pt-1 group-hover:text-amber-200">
+                                      Urgent booking available
                                     </span>
                                   )}
                                 </div>
@@ -970,11 +957,45 @@ export default function ContactPage(props: Props) {
             )}
           </div>
 
+          {hasSelectedServices && allSelectedAllowUrgent && (
+            <div className="rounded border border-amber-200 bg-amber-50 px-4 py-4 space-y-2">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isUrgent}
+                  onChange={(e) => setIsUrgent(e.target.checked)}
+                  className="mt-1 h-4 w-4 shrink-0 accent-amber-600 cursor-pointer"
+                />
+                <div className="flex flex-col">
+                  <span className="font-medium text-sm sm:text-base text-amber-900">
+                    Request urgent priority booking
+                  </span>
+                  <span className="text-xs sm:text-sm text-amber-800">
+                    Urgent service is available for selected maintenance services only and incurs an additional priority fee.
+                  </span>
+                </div>
+              </label>
+
+              {isUrgent && (
+                <p className="text-xs text-amber-900 italic">
+                  Urgent requests are subject to availability and may include an extra charge.
+                </p>
+              )}
+            </div>
+          )}
+
+          {hasMixedUrgentEligibility && (
+            <div className="rounded border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+              Urgent booking is only available when all selected services are
+              urgent-eligible. For lawn care or mixed bookings, please submit a
+              separate request if you need urgent maintenance work.
+            </div>
+          )}
+
           <div className="space-y-4">
             <div className="font-semibold">Upload Images</div>
             <p className="text-xs italic text-gray-700">
-              Please upload at least one image. Maximum {MAX_IMAGE_UPLOADS}{" "}
-              images.
+              Please upload images if needed. Maximum {MAX_IMAGE_UPLOADS} images.
             </p>
 
             <div className="text-xs text-gray-600">

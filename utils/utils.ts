@@ -2,6 +2,7 @@
 import { RegisterPayload, LoginPayload, Service, Image, Quote } from "@/types";
 
 export const GST_RATE = 0.15;
+export const round2 = (num: number) => Number(num.toFixed(2));
 
 export async function registerUser(payload: RegisterPayload) {
   try {

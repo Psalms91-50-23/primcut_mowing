@@ -84,7 +84,7 @@ export default function InquiryDetail() {
         body: JSON.stringify({
           reply_message: trimmedMessage,
           recipient_email: inquiry?.email || "",
-          reply_subject: `Re: Inquiry ${inquiry?.uuid || uuid}`,
+          reply_subject: `Re: Inquiry ID: ${inquiry?.uuid || uuid}`,
         }),
       });
 
@@ -224,7 +224,21 @@ export default function InquiryDetail() {
                 </p>
               </div>
             </div>
-
+            {services.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Requested Services</h2>
+                <div className="flex flex-wrap gap-2">
+                  {services.map((service: string, index: number) => (
+                    <span
+                      key={`${service}-${index}`}
+                      className="inline-flex items-center rounded-full bg-green-100 text-green-800 text-sm font-medium px-3 py-1"
+                    >
+                      {service}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Reply to Email</h2>
 
@@ -258,8 +272,9 @@ export default function InquiryDetail() {
                     className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 outline-none focus:border-green-700"
                     disabled={replySending || !inquiry?.email}
                   />
+                  
                 </div>
-
+                      
                 {replyError && (
                   <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {replyError}
@@ -271,7 +286,7 @@ export default function InquiryDetail() {
                     {replySuccess}
                   </div>
                 )}
-
+                
                 <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     type="button"
@@ -296,24 +311,8 @@ export default function InquiryDetail() {
                   </button>
                 </div>
               </div>
-            </div>
-
-            {services.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Requested Services</h2>
-                <div className="flex flex-wrap gap-2">
-                  {services.map((service: string, index: number) => (
-                    <span
-                      key={`${service}-${index}`}
-                      className="inline-flex items-center rounded-full bg-green-100 text-green-800 text-sm font-medium px-3 py-1"
-                    >
-                      {service}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
+            </div>  
+            
             {Array.isArray(inquiry?.images) && inquiry.images.length > 0 && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Images</h2>

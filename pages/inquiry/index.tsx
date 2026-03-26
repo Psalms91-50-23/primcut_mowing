@@ -37,15 +37,15 @@ export default function InquiryPage() {
     }));
   };
 
-  const toggleService = (code: string) => {
+  const toggleService = (label: string) => {
     setForm((prev) => {
-      const alreadySelected = prev.services.includes(code);
+      const alreadySelected = prev.services.includes(label);
 
       return {
         ...prev,
         services: alreadySelected
-          ? prev.services.filter((item) => item !== code)
-          : [...prev.services, code],
+          ? prev.services.filter((item) => item !== label)
+          : [...prev.services, label],
       };
     });
   };
@@ -54,7 +54,7 @@ export default function InquiryPage() {
     if (!form.services.length) return "Select services";
 
     return services
-      .filter((service) => form.services.includes(service.code))
+      .filter((service) => form.services.includes(service.label))
       .map((service) => service.label)
       .join(", ");
   };

@@ -48,6 +48,7 @@ export default function QuoteView() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<"accept" | "reject" | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const loggedInCustomerUuid = useMemo(() => {
     return user?.customer_uuid || user?.customer?.uuid || null;
@@ -76,6 +77,7 @@ export default function QuoteView() {
       try {
         setLoading(true);
         setQuote(null);
+        setTermsAccepted(false);
 
         if (rawToken) {
           setQuoteToken(rawToken);
@@ -185,6 +187,11 @@ export default function QuoteView() {
 
   const handleQuoteAction = async (action: "accept" | "reject") => {
     if (!quote || quote.limited || isResponded) return;
+
+    if (action === "accept" && !termsAccepted) {
+      alert("Please accept the Terms and Conditions before accepting the quote.");
+      return;
+    }
 
     try {
       setActionLoading(true);
@@ -430,28 +437,59 @@ export default function QuoteView() {
           </div>
 
           {!quote.limited && !isResponded && (
-            <div className="mt-6 flex gap-4">
-              <button
-                onClick={() => handleQuoteAction("accept")}
-                disabled={loadingAction === "reject" || actionLoading}
-                className={`px-6 py-3 rounded-lg flex items-center justify-center gap-2 font-semibold transition ${
-                  loadingAction === "accept"
-                    ? "bg-gray-400 text-white cursor-not-allowed"
-                    : loadingAction === "reject"
-                    ? "bg-green-600 text-white opacity-50 cursor-not-allowed"
-                    : "bg-green-600 text-white hover:bg-green-900 hover:cursor-pointer"
-                }`}
-              >
-                {loadingAction === "accept" ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Processing...
-                  </>
-                ) : (
-                  "Accept"
-                )}
-              </button>
-            </div>
+            <>
+              <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    className="mt-1 h-4 w-4 accent-green-700 cursor-pointer"
+                  />
+                  <span className="text-sm text-gray-700 leading-6">
+                    I have read and agree to the{" "}
+                    <a
+                      href="/terms-and-conditions"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-700 font-semibold underline hover:text-green-900"
+                    >
+                      Terms and Conditions
+                    </a>
+                    .
+                  </span>
+                </label>
+              </div>
+
+              <div className="mt-6 flex gap-4">
+                <button
+                  onClick={() => handleQuoteAction("accept")}
+                  disabled={
+                    loadingAction === "reject" ||
+                    actionLoading ||
+                    !termsAccepted
+                  }
+                  className={`px-6 py-3 rounded-lg flex items-center justify-center gap-2 font-semibold transition ${
+                    !termsAccepted
+                      ? "bg-gray-400 text-white cursor-not-allowed"
+                      : loadingAction === "accept"
+                      ? "bg-gray-400 text-white cursor-not-allowed"
+                      : loadingAction === "reject"
+                      ? "bg-green-600 text-white opacity-50 cursor-not-allowed"
+                      : "bg-green-600 text-white hover:bg-green-900 hover:cursor-pointer"
+                  }`}
+                >
+                  {loadingAction === "accept" ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    "Accept"
+                  )}
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>

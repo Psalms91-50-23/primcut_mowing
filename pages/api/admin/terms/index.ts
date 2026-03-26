@@ -20,7 +20,6 @@ export default async function handler(
       title,
       content,
       short_summary,
-      pdf_url,
       is_active,
     } = req.body || {};
 
@@ -30,28 +29,33 @@ export default async function handler(
       });
     }
 
-    const token =
-      req.cookies?.token ||
-      req.headers.authorization ||
-      "";
-
     const response = await fetch(`${BACKEND_URL}/api/terms-and-conditions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-         "Cookie": req.headers.cookie || "",
+        Cookie: req.headers.cookie || "",
       },
       body: JSON.stringify({
         version,
         title,
         content,
         short_summary: short_summary || null,
-        pdf_url: pdf_url || null,
         is_active: Boolean(is_active),
       }),
     });
 
-    const data = await response.json();
+    const contentType = response.headers.get("content-type") || "";
+    let data: any;
+
+    if (contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      return res.status(500).json({
+        error: "Backend returned non-JSON response",
+        body: text,
+      });
+    }
 
     if (!response.ok) {
       return res.status(response.status).json({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const routePermissions = [
   { prefix: "/dashboard/admin", allowedRoles: ["admin", "owner"] },
+  { prefix: "/admin/terms/new", allowedRoles: ["admin", "owner"] },
   { prefix: "/employee", allowedRoles: ["admin", "owner", "employee" ]},
   { prefix: "/dashboard/owner", allowedRoles: ["owner"] },
   { prefix: "/dashboard/employee", allowedRoles: ["employee"] },
@@ -89,6 +90,7 @@ export const config = {
   matcher: [
     "/dashboard",
     "/dashboard/admin/:path*",
+    "/admin/terms/:path*",
     "/dashboard/owner/:path*",
     "/dashboard/employee/:path*",
     "/dashboard/customer/:path*",

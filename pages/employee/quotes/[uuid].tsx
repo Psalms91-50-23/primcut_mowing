@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
-import { formatFullName } from "@/utils/utils";
+import { formatFullName, round2 } from "@/utils/utils";
 import { useUI } from "../../../context/UIContext";
 
 type Service = {
@@ -38,6 +38,12 @@ type Quote = {
   sent_by_user_uuid?: string;
   employer_message?: string;
   message?: string; // client message to business
+
+    // add these
+  terms_version?: string | number;
+  terms_pdf_url?: string;
+  terms_storage_path?: string;
+  terms_file_name?: string;
 };
 
 const GST_RATE = 0.15;
@@ -47,27 +53,27 @@ export default function EmployeeQuotePage() {
   const { uuid } = router.query;
   const { user, role, loading } = useAuth();
   const { openImage } = useUI();
+
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newExpiry, setNewExpiry] = useState("");
 
-  // Protect Route
   useEffect(() => {
     if (loading || !router.isReady) return;
+
     if (!user) {
       router.replace(`/auth?redirect=${encodeURIComponent(router.asPath)}`);
       return;
     }
+
     if (!role || !["admin", "owner", "employee"].includes(role)) {
       router.replace("/auth");
     }
-  }, [loading, user, role, router, router.isReady]);
+  }, [loading, user, role, router]);
 
-  // Fetch quote
   useEffect(() => {
     if (!router.isReady) return;
-    console.log({ uuid }, " employee getting quotes");
 
     if (typeof uuid !== "string") {
       setLoadingQuote(false);
@@ -76,6 +82,7 @@ export default function EmployeeQuotePage() {
 
     const fetchQuote = async () => {
       setLoadingQuote(true);
+
       try {
         const res = await fetch(`/api/employee/quotes/${uuid}/details`, {
           credentials: "include",
@@ -93,17 +100,19 @@ export default function EmployeeQuotePage() {
         const services = (quoteData.services || []).map((s: any) => ({
           value: s.value,
           label: s.label || s.value || "",
-          unit_price: s.unit_price ?? 0,
-          quantity: s.quantity ?? 1,
+          unit_price: Number(s.unit_price ?? 0),
+          quantity: Number(s.quantity ?? 1),
         }));
 
-        const subtotal = services.reduce(
-          (sum: number, s: { unit_price: number; quantity: number }) =>
-            sum + s.unit_price * s.quantity,
-          0
+        const subtotal = round2(
+          services.reduce(
+            (sum: number, s: { unit_price: number; quantity: number }) =>
+              sum + s.unit_price * s.quantity,
+            0
+          )
         );
-        const gst = subtotal * GST_RATE;
-        const total = subtotal + gst;
+        const gst = round2(subtotal * GST_RATE);
+        const total = round2(subtotal + gst);
 
         setQuote({
           ...quoteData,
@@ -128,42 +137,61 @@ export default function EmployeeQuotePage() {
     fetchQuote();
   }, [router.isReady, uuid]);
 
+  const recalculateQuoteTotals = (services: Service[], currentQuote: Quote): Quote => {
+    const subtotal = round2(
+      services.reduce((sum, s) => sum + s.unit_price * s.quantity, 0)
+    );
+    const gst = round2(subtotal * GST_RATE);
+    const total = round2(subtotal + gst);
+
+    return {
+      ...currentQuote,
+      services,
+      subtotal_amount: subtotal,
+      gst_amount: gst,
+      total_amount: total,
+    };
+  };
+
   const handleServiceChange = (
     index: number,
     field: "quantity" | "unit_price",
     rawValue: string
   ) => {
     if (!quote) return;
+
     const updatedServices = [...quote.services];
-    let value = Number(rawValue);
 
-    if (field === "quantity") value = Math.max(1, value);
-    if (field === "unit_price") value = rawValue === "" ? 0 : Math.max(0, value);
+    if (field === "quantity") {
+      const parsed = Number(rawValue);
+      const quantity = Number.isFinite(parsed) ? Math.max(1, parsed) : 1;
+      updatedServices[index][field] = quantity;
+    }
 
-    updatedServices[index][field] = value;
+    if (field === "unit_price") {
+      if (rawValue === "") {
+        updatedServices[index][field] = 0;
+      } else {
+        const parsed = Number(rawValue);
+        const unitPrice = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+        updatedServices[index][field] = unitPrice;
+      }
+    }
 
-    const subtotal = updatedServices.reduce(
-      (sum, s) => sum + s.unit_price * s.quantity,
-      0
-    );
-    const gst = subtotal * GST_RATE;
-    const total = subtotal + gst;
-
-    setQuote({
-      ...quote,
-      services: updatedServices,
-      subtotal_amount: subtotal,
-      gst_amount: gst,
-      total_amount: total,
-    });
+    setQuote(recalculateQuoteTotals(updatedServices, quote));
   };
 
   const handleFinalizeQuote = async () => {
-    if (!quote || !uuid) return;
+    if (!quote || typeof uuid !== "string") return;
 
-    const invalidService = quote.services.find((s) => !s.unit_price || s.unit_price <= 0);
+    const invalidService = quote.services.find(
+      (s) => !Number.isFinite(s.unit_price) || s.unit_price <= 0
+    );
+
     if (invalidService) {
-      toast.error(`Please enter a value for unit price for service: ${invalidService.label}`);
+      toast.error(
+        `Please enter a value for unit price for service: ${invalidService.label}`
+      );
       return;
     }
 
@@ -173,10 +201,21 @@ export default function EmployeeQuotePage() {
     }
 
     setSaving(true);
+
     try {
+      const subtotal = round2(
+        quote.services.reduce((sum, s) => sum + s.unit_price * s.quantity, 0)
+      );
+      const gst = round2(subtotal * GST_RATE);
+      const total = round2(subtotal + gst);
+
       const updatedQuote = {
         ...quote,
-        sent_by_user_uuid: user?.uuid,
+        expiry_end: newExpiry || quote.expiry_end || null,
+        subtotal_amount: subtotal,
+        gst_amount: gst,
+        total_amount: total,
+        sent_by_user_uuid: user?.uuid ?? null,
         is_quote_sent_to_client: true,
         quote_sent_at: new Date().toISOString(),
       };
@@ -185,46 +224,45 @@ export default function EmployeeQuotePage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          ...updatedQuote,
-          sent_by_user_uuid: user?.uuid ?? null,
-        }),
+        body: JSON.stringify(updatedQuote),
       });
-      // const res = await fetch(`/api/quotes/${uuid}`, {
-      //   method: "PATCH",
-      //   headers: { "Content-Type": "application/json" },
-      //   credentials: "include",
-      //   body: JSON.stringify({
-      //     ...updatedQuote,
-      //     sent_by_user_uuid: user?.uuid ?? null,
-      //   }),
-      // });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to finalize quote");
 
-      setQuote(data.quote || data);
+      if (!res.ok) {
+        throw new Error(data.error || data.message || "Failed to finalize quote");
+      }
+
+      const returnedQuote = data.quote || data;
+
+      setQuote(returnedQuote);
+
+      if (returnedQuote.expiry_end) {
+        setNewExpiry(new Date(returnedQuote.expiry_end).toISOString().split("T")[0]);
+      }
+
       toast.success(
-        `Quote finalized! Expiry is now ${new Date(data.quote.expiry_end).toLocaleDateString()}`
+        `Quote finalized! Expiry is now ${new Date(
+          returnedQuote.expiry_end
+        ).toLocaleDateString()}`
       );
     } catch (err: any) {
       console.error(err);
-      toast.error("Failed to send quote.");
+      toast.error(err.message || "Failed to send quote.");
     } finally {
       setSaving(false);
     }
   };
 
-  console.log("/quotes/[uuid].tsx");
-
-  if (loading || loadingQuote)
+  if (loading || loadingQuote) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="w-16 h-16 border-4 border-green-700 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
+  }
 
-  if (!quote)
+  if (!quote) {
     return (
       <div
         className="relative flex flex-col items-center justify-center p-4"
@@ -259,10 +297,12 @@ export default function EmployeeQuotePage() {
         </div>
       </div>
     );
+  }
 
-  const alreadySent = quote.quote_sent_at
-    ? new Date(quote.quote_sent_at).toLocaleString()
-    : null;
+  const alreadySent =
+    quote.is_quote_sent_to_client && quote.quote_sent_at
+      ? new Date(quote.quote_sent_at).toLocaleString()
+      : null;
 
   if (alreadySent) {
     return (
@@ -353,7 +393,8 @@ export default function EmployeeQuotePage() {
           <div>
             {expired && (
               <div className="mb-4 p-3 bg-red-100 text-red-700 font-semibold rounded">
-                This quote has expired. You may extend the expiry date and change status to accept.
+                This quote has expired. You may extend the expiry date and change status to
+                accept.
               </div>
             )}
 
@@ -384,9 +425,7 @@ export default function EmployeeQuotePage() {
 
                   {quote.message && quote.message.trim() && (
                     <div className="mt-4 flex flex-col">
-                      <label className="font-bold py-2">
-                        Client Message
-                      </label>
+                      <label className="font-bold py-2">Client Message</label>
                       <div className="w-full border border-gray-300 rounded px-3 py-3 bg-gray-50 text-gray-800 whitespace-pre-wrap break-words min-h-[100px]">
                         {quote.message}
                       </div>
@@ -479,7 +518,9 @@ export default function EmployeeQuotePage() {
                       <td className="border px-4 py-2">{s.label}</td>
                       <td className="border px-4 py-2 text-right">
                         <input
-                          type="text"
+                          type="number"
+                          min={1}
+                          step={1}
                           value={s.quantity}
                           className="border rounded px-2 py-1 w-20 text-right shadow-sm focus:ring-1 focus:ring-green-500"
                           onChange={(e) =>
@@ -489,7 +530,9 @@ export default function EmployeeQuotePage() {
                       </td>
                       <td className="border px-4 py-2 text-right">
                         <input
-                          type="text"
+                          type="number"
+                          min={0}
+                          step="0.01"
                           value={s.unit_price === 0 ? "" : s.unit_price}
                           placeholder="0"
                           className="border rounded px-2 py-1 w-24 text-right shadow-sm focus:ring-1 focus:ring-green-500"
@@ -499,7 +542,7 @@ export default function EmployeeQuotePage() {
                         />
                       </td>
                       <td className="border px-4 py-2 text-right">
-                        ${(s.unit_price * s.quantity).toFixed(2)}
+                        ${round2(s.unit_price * s.quantity).toFixed(2)}
                       </td>
                     </tr>
                   ))}
