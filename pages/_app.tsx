@@ -62,7 +62,7 @@ function HappyProperty({ Component, pageProps }: AppProps) {
                 className="w-full max-w-[1600px] mx-auto"
                 style={{ paddingTop: "var(--nav-height)" }}
               >
-              <div className=""><p className='text-3xl font-bold p-5'>Please do not use this site for commercial purposes, as it is under contruction <span className='text-5xl'>🛠️</span></p></div> 
+              <div className=""><p className='text-center text-3xl font-bold p-5'>Please do not use this site for commercial purposes, as it is under contruction <span className='text-5xl'>🛠️</span></p></div> 
               <main>
                   <Component {...pageProps} />
                 </main>

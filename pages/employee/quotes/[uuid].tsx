@@ -37,16 +37,26 @@ type Quote = {
   quote_sent_at?: string;
   sent_by_user_uuid?: string;
   employer_message?: string;
-  message?: string; // client message to business
+  message?: string;
 
-    // add these
   terms_version?: string | number;
   terms_pdf_url?: string;
   terms_storage_path?: string;
   terms_file_name?: string;
+
+  has_urgent_fee?: boolean;
+  urgent_fee_amount?: number;
 };
 
 const GST_RATE = 0.15;
+
+const formatDateOnly = (value?: string | null) => {
+  if (!value) return "";
+  const datePart = String(value).slice(0, 10);
+  const [year, month, day] = datePart.split("-");
+  if (!year || !month || !day) return datePart;
+  return `${day}/${month}/${year}`;
+};
 
 export default function EmployeeQuotePage() {
   const router = useRouter();
@@ -58,6 +68,34 @@ export default function EmployeeQuotePage() {
   const [loadingQuote, setLoadingQuote] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newExpiry, setNewExpiry] = useState("");
+
+  const getServicesSubtotal = (services: Service[]) =>
+    round2(services.reduce((sum, s) => sum + s.unit_price * s.quantity, 0));
+
+  const getUrgentFee = (currentQuote: Quote) =>
+    currentQuote.has_urgent_fee &&
+    Number.isFinite(Number(currentQuote.urgent_fee_amount))
+      ? round2(Number(currentQuote.urgent_fee_amount ?? 0))
+      : 0;
+
+  const recalculateQuoteTotals = (
+    services: Service[],
+    currentQuote: Quote
+  ): Quote => {
+    const servicesSubtotal = getServicesSubtotal(services);
+    const urgentFee = getUrgentFee(currentQuote);
+    const subtotal = round2(servicesSubtotal + urgentFee);
+    const gst = round2(subtotal * GST_RATE);
+    const total = round2(subtotal + gst);
+
+    return {
+      ...currentQuote,
+      services,
+      subtotal_amount: subtotal,
+      gst_amount: gst,
+      total_amount: total,
+    };
+  };
 
   useEffect(() => {
     if (loading || !router.isReady) return;
@@ -91,11 +129,14 @@ export default function EmployeeQuotePage() {
         const contentType = res.headers.get("content-type") || "";
         if (!contentType.includes("application/json")) {
           const text = await res.text();
-          throw new Error(`Non-JSON response: ${res.status} ${text.slice(0, 200)}`);
+          throw new Error(
+            `Non-JSON response: ${res.status} ${text.slice(0, 200)}`
+          );
         }
 
         const data = await res.json();
         const quoteData = data?.quote ?? data;
+        console.log({ quoteData });
 
         const services = (quoteData.services || []).map((s: any) => ({
           value: s.value,
@@ -104,26 +145,24 @@ export default function EmployeeQuotePage() {
           quantity: Number(s.quantity ?? 1),
         }));
 
-        const subtotal = round2(
-          services.reduce(
-            (sum: number, s: { unit_price: number; quantity: number }) =>
-              sum + s.unit_price * s.quantity,
-            0
-          )
-        );
-        const gst = round2(subtotal * GST_RATE);
-        const total = round2(subtotal + gst);
-
-        setQuote({
+        const baseQuote: Quote = {
           ...quoteData,
           services,
-          subtotal_amount: subtotal,
-          gst_amount: gst,
-          total_amount: total,
-        });
+          has_urgent_fee: Boolean(quoteData.has_urgent_fee),
+          urgent_fee_amount: Number(quoteData.urgent_fee_amount ?? 0),
+          subtotal_amount: 0,
+          gst_amount: 0,
+          total_amount: 0,
+        };
+
+        const recalculatedQuote = recalculateQuoteTotals(services, baseQuote);
+
+        setQuote(recalculatedQuote);
 
         if (quoteData.expiry_end) {
-          setNewExpiry(new Date(quoteData.expiry_end).toISOString().split("T")[0]);
+          setNewExpiry(String(quoteData.expiry_end).slice(0, 10));
+        } else {
+          setNewExpiry("");
         }
       } catch (err) {
         console.error(err);
@@ -136,22 +175,6 @@ export default function EmployeeQuotePage() {
 
     fetchQuote();
   }, [router.isReady, uuid]);
-
-  const recalculateQuoteTotals = (services: Service[], currentQuote: Quote): Quote => {
-    const subtotal = round2(
-      services.reduce((sum, s) => sum + s.unit_price * s.quantity, 0)
-    );
-    const gst = round2(subtotal * GST_RATE);
-    const total = round2(subtotal + gst);
-
-    return {
-      ...currentQuote,
-      services,
-      subtotal_amount: subtotal,
-      gst_amount: gst,
-      total_amount: total,
-    };
-  };
 
   const handleServiceChange = (
     index: number,
@@ -181,6 +204,22 @@ export default function EmployeeQuotePage() {
     setQuote(recalculateQuoteTotals(updatedServices, quote));
   };
 
+  const handleUrgentFeeChange = (rawValue: string) => {
+    if (!quote) return;
+
+    const urgentFee =
+      rawValue === ""
+        ? 0
+        : Math.max(0, Number.isFinite(Number(rawValue)) ? Number(rawValue) : 0);
+
+    const updatedQuote: Quote = {
+      ...quote,
+      urgent_fee_amount: urgentFee,
+    };
+
+    setQuote(recalculateQuoteTotals(quote.services, updatedQuote));
+  };
+
   const handleFinalizeQuote = async () => {
     if (!quote || typeof uuid !== "string") return;
 
@@ -203,15 +242,16 @@ export default function EmployeeQuotePage() {
     setSaving(true);
 
     try {
-      const subtotal = round2(
-        quote.services.reduce((sum, s) => sum + s.unit_price * s.quantity, 0)
-      );
+      const servicesSubtotal = getServicesSubtotal(quote.services);
+      const urgentFee = getUrgentFee(quote);
+      const subtotal = round2(servicesSubtotal + urgentFee);
       const gst = round2(subtotal * GST_RATE);
       const total = round2(subtotal + gst);
 
       const updatedQuote = {
         ...quote,
         expiry_end: newExpiry || quote.expiry_end || null,
+        urgent_fee_amount: urgentFee,
         subtotal_amount: subtotal,
         gst_amount: gst,
         total_amount: total,
@@ -235,16 +275,31 @@ export default function EmployeeQuotePage() {
 
       const returnedQuote = data.quote || data;
 
-      setQuote(returnedQuote);
+      const normalizedServices = (returnedQuote.services || []).map((s: any) => ({
+        value: s.value,
+        label: s.label || s.value || "",
+        unit_price: Number(s.unit_price ?? 0),
+        quantity: Number(s.quantity ?? 1),
+      }));
+
+      const normalizedQuote: Quote = recalculateQuoteTotals(normalizedServices, {
+        ...returnedQuote,
+        services: normalizedServices,
+        urgent_fee_amount: Number(returnedQuote.urgent_fee_amount ?? 0),
+      });
+
+      setQuote(normalizedQuote);
 
       if (returnedQuote.expiry_end) {
-        setNewExpiry(new Date(returnedQuote.expiry_end).toISOString().split("T")[0]);
+        setNewExpiry(String(returnedQuote.expiry_end).slice(0, 10));
+      } else {
+        setNewExpiry("");
       }
 
       toast.success(
-        `Quote finalized! Expiry is now ${new Date(
+        `Quote finalized! Expiry is now ${formatDateOnly(
           returnedQuote.expiry_end
-        ).toLocaleDateString()}`
+        )}`
       );
     } catch (err: any) {
       console.error(err);
@@ -341,13 +396,10 @@ export default function EmployeeQuotePage() {
     );
   }
 
-  const expiryDate = newExpiry
-    ? new Date(newExpiry + "T00:00:00")
-    : quote.expiry_end
-    ? new Date(quote.expiry_end)
-    : null;
-
-  const expired = expiryDate ? expiryDate < new Date() : false;
+  const expiryDate = quote.expiry_end ? new Date(quote.expiry_end) : null;
+  const expired = expiryDate ? expiryDate.getTime() < Date.now() : false;
+  const servicesSubtotal = getServicesSubtotal(quote.services);
+  const urgentFee = getUrgentFee(quote);
 
   return (
     <div
@@ -380,10 +432,10 @@ export default function EmployeeQuotePage() {
             </h1>
           </div>
 
-          {expiryDate && (
+          {(newExpiry || quote.expiry_end) && (
             <div className="w-full flex justify-end mt-2 sm:mt-0 sm:flex-1 sm:justify-end">
               <span className="text-white text-base sm:text-xl">
-                Expiry Date: {expiryDate.toLocaleDateString()}
+                Expiry Date: {formatDateOnly(newExpiry || quote.expiry_end)}
               </span>
             </div>
           )}
@@ -393,8 +445,8 @@ export default function EmployeeQuotePage() {
           <div>
             {expired && (
               <div className="mb-4 p-3 bg-red-100 text-red-700 font-semibold rounded">
-                This quote has expired. You may extend the expiry date and change status to
-                accept.
+                This quote has expired. You may extend the expiry date and change
+                status to accept.
               </div>
             )}
 
@@ -409,7 +461,10 @@ export default function EmployeeQuotePage() {
                   <div className="py-1">
                     <span className="font-bold">Name: </span>
                     <span>
-                      {formatFullName(quote.contact_first_name, quote.contact_last_name)}
+                      {formatFullName(
+                        quote.contact_first_name,
+                        quote.contact_last_name
+                      )}
                     </span>
                   </div>
 
@@ -472,6 +527,10 @@ export default function EmployeeQuotePage() {
                           onChange={(e) => setNewExpiry(e.target.value)}
                         />
                       </label>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Dates under 4 days ahead will be standardized to 3 days.
+                        Choose 4 or more days ahead to allow a longer expiry.
+                      </p>
                     </div>
 
                     <div className="flex flex-col flex-1 min-w-0">
@@ -481,6 +540,34 @@ export default function EmployeeQuotePage() {
                       </div>
                     </div>
                   </div>
+
+                  {quote.has_urgent_fee && (
+                    <div className="mt-4 flex flex-col sm:flex-row sm:items-end sm:gap-4">
+                      <label className="flex flex-col w-full sm:w-64">
+                        <span className="font-bold py-2 text-red-700">
+                          Urgent Fee
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={
+                            quote.urgent_fee_amount === 0
+                              ? ""
+                              : quote.urgent_fee_amount ?? ""
+                          }
+                          placeholder="0"
+                          className="w-full border border-red-400 rounded px-3 py-2 shadow-sm focus:ring-1 focus:ring-red-500"
+                          onChange={(e) => handleUrgentFeeChange(e.target.value)}
+                        />
+                      </label>
+
+                      <div className="text-sm text-gray-600 mt-2 sm:mt-0">
+                        This quote is marked as urgent. Add or update the urgent
+                        fee here.
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -498,7 +585,8 @@ export default function EmployeeQuotePage() {
                 className="w-full border border-gray-400 rounded px-3 py-2 shadow-sm focus:ring-1 focus:ring-green-500 min-h-[120px] resize-none overflow-y-auto"
               />
               <p className="text-xs text-gray-500 mt-2">
-                This message will appear in the quote template when sending to client.
+                This message will appear in the quote template when sending to
+                client.
               </p>
             </div>
 
@@ -558,7 +646,9 @@ export default function EmployeeQuotePage() {
                         return (
                           <button
                             key={`img ${i}`}
-                            onClick={() => quote.images && openImage(quote.images[i].url)}
+                            onClick={() =>
+                              quote.images && openImage(quote.images[i].url)
+                            }
                             className="w-15 h-15 overflow-hidden rounded-lg border cursor-pointer group hover:border-green-900"
                           >
                             <img
@@ -575,6 +665,16 @@ export default function EmployeeQuotePage() {
             </div>
 
             <div className="flex flex-col space-y-2 items-end">
+              <div className="py-1 font-semibold">
+                <span>Services Subtotal: ${servicesSubtotal.toFixed(2)}</span>
+              </div>
+
+              {quote.has_urgent_fee && (
+                <div className="py-1 font-semibold text-red-700">
+                  <span>Urgent Fee: ${urgentFee.toFixed(2)}</span>
+                </div>
+              )}
+
               <div className="py-1 font-semibold">
                 <span>Subtotal: ${quote.subtotal_amount.toFixed(2)}</span>
               </div>

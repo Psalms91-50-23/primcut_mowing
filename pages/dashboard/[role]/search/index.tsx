@@ -92,26 +92,24 @@ export default function DeepSearchPage() {
     });
   }, [recurrences]);
 
-  const getRoute = (t: SearchType, targetUUID: string) => {
-    if (!roleFromUrl) return "/auth";
-    if (t === "quote") return `/dashboard/${roleFromUrl}/quotes/${targetUUID}`;
-    if (t === "job") return `/dashboard/${roleFromUrl}/jobs/${targetUUID}`;
-    return `/dashboard/${roleFromUrl}/customers/${targetUUID}`;
-  };
-
   const getQuoteRoute = (targetUUID: string) => {
     if (!roleFromUrl) return "/auth";
     return `/dashboard/${roleFromUrl}/quotes/${targetUUID}`;
   };
 
   const getJobRoute = (targetUUID: string) => {
-    if (!roleFromUrl) return "/auth";
     return `/employee/jobs/uuid/${targetUUID}`;
   };
 
   const getCustomerRoute = (targetUUID: string) => {
     if (!roleFromUrl) return "/auth";
     return `/dashboard/${roleFromUrl}/customers/${targetUUID}`;
+  };
+
+  const getRoute = (t: SearchType, targetUUID: string) => {
+    if (t === "quote") return getQuoteRoute(targetUUID);
+    if (t === "job") return getJobRoute(targetUUID);
+    return getCustomerRoute(targetUUID);
   };
 
   const formatPersonName = (first?: string | null, last?: string | null) => {

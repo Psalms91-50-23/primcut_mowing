@@ -18,7 +18,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, roleRedirectMap } from "@/context/AuthContext";
 import { formatFullName } from "@/utils/utils";
 import { useUI } from "@/context/UIContext";
 
@@ -33,12 +33,21 @@ type ServiceRecord = {
   service_uuid?: string | null;
 };
 
+type QuoteImageRecord = {
+  url?: string | null;
+  image_url?: string | null;
+  label?: string | null;
+  alt?: string | null;
+  file_name?: string | null;
+};
+
 type QuoteSummary = {
   uuid?: string | null;
   contact_first_name?: string | null;
   contact_last_name?: string | null;
   status?: string | null;
   total_amount?: number | null;
+  images?: QuoteImageRecord[] | null;
 };
 
 type JobImageRecord = {
@@ -88,6 +97,11 @@ type JobRecord = {
   job_address?: string | null;
   scheduled_window_mins?: number | null;
   scheduled_window_preset?: string | null;
+  has_urgent_fee?: boolean | null;
+  urgent_fee_amount?: number | null;
+  notes?: string | null;
+  client_schedule_message?: string | null;
+  client_schedule_message_sent_at?: string | null;
   quote?: QuoteSummary | null;
   job_recurrences?: JobRecurrenceRecord[];
 };
@@ -135,7 +149,7 @@ function formatStatus(status?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function getImageUrl(image?: JobImageRecord) {
+function getImageUrl(image?: JobImageRecord | QuoteImageRecord) {
   return image?.url || image?.image_url || "";
 }
 
@@ -168,13 +182,18 @@ function calculateSubtotalFromServices(services: ServiceRecord[] = []) {
 export default function EmployeesJobsDetailsPage() {
   const router = useRouter();
   const { uuid } = router.query;
-  const { user, loading } = useAuth();
+  const { user, loading, role } = useAuth();
   const { openImage } = useUI();
 
   const [job, setJob] = useState<JobRecord | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+
+  const dashboardPath =
+    (role && roleRedirectMap[role]) ||
+    (user?.role && roleRedirectMap[user.role]) ||
+    "/dashboard";
 
   const fetchJob = async (showRefreshState = false) => {
     if (!uuid || typeof uuid !== "string") return;
@@ -197,7 +216,6 @@ export default function EmployeesJobsDetailsPage() {
       if (!response.ok) {
         throw new Error(data?.error || "Failed to fetch job details");
       }
-
       setJob(data.job || null);
     } catch (err: any) {
       setError(err?.message || "Failed to fetch job details");
@@ -215,21 +233,63 @@ export default function EmployeesJobsDetailsPage() {
 
   const services = useMemo(() => job?.services || [], [job]);
   const recurrences = useMemo(() => job?.job_recurrences || [], [job]);
-  const images = useMemo(() => job?.job_images || [], [job]);
+  const jobImages = useMemo(() => job?.job_images || [], [job]);
+  const quoteImages = useMemo(() => job?.quote?.images || [], [job]);
 
-  const derivedSubtotal = useMemo(
+  const servicesSubtotal = useMemo(
     () => calculateSubtotalFromServices(services),
     [services]
   );
 
+  const urgentFeeAmount = Number(job?.urgent_fee_amount ?? 0);
+  const hasUrgentFee = Boolean(job?.has_urgent_fee) && urgentFeeAmount > 0;
+
   const subtotalAmount =
-    job?.subtotal_amount != null ? Number(job.subtotal_amount) : derivedSubtotal;
+    job?.subtotal_amount != null
+      ? Number(job.subtotal_amount)
+      : servicesSubtotal + urgentFeeAmount;
+
+  const serviceSubtotalDisplay =
+    job?.subtotal_amount != null && hasUrgentFee
+      ? Math.max(0, subtotalAmount - urgentFeeAmount)
+      : servicesSubtotal;
 
   const gstAmount =
     job?.gst_amount != null ? Number(job.gst_amount) : subtotalAmount * 0.15;
 
   const totalAmount =
     job?.total_amount != null ? Number(job.total_amount) : subtotalAmount + gstAmount;
+
+  const handleBackToDashboard = () => {
+    router.push(dashboardPath);
+  };
+
+  const handleBackToPreviousPage = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push(dashboardPath);
+  };
+
+  const handleCompleteJob = () => {
+    const targetUuid = job?.uuid || uuid;
+    if (!targetUuid || typeof targetUuid !== "string") return;
+    router.push(`/employee/jobs/uuid/${targetUuid}/complete`);
+  };
+
+  const handleCancelJob = () => {
+    const targetUuid = job?.uuid || uuid;
+    if (!targetUuid || typeof targetUuid !== "string") return;
+    router.push(`/employee/jobs/uuid/${targetUuid}/cancel`);
+  };
+
+
+  const handleEditJob = () => {
+    const targetUuid = job?.uuid || uuid;
+    if (!targetUuid || typeof targetUuid !== "string") return;
+    router.push(`/employee/jobs/uuid/${targetUuid}`);
+  };
 
   if (loading || pageLoading) {
     return <Spinner text="Loading job details..." />;
@@ -250,7 +310,7 @@ export default function EmployeesJobsDetailsPage() {
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-6 md:px-8">
       <div className="mx-auto max-w-7xl">
@@ -265,18 +325,42 @@ export default function EmployeesJobsDetailsPage() {
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
-              onClick={() => router.push("/employee/jobs")}
+              onClick={handleBackToPreviousPage}
               className="border-gray-300 hover:cursor-pointer"
             >
-              Back to Jobs
+              Back to Previous Page
             </Button>
 
             <Button
-              onClick={() => router.push(`/employee/jobs/uuid/${job?.uuid || uuid}`)}
+              variant="outline"
+              onClick={handleBackToDashboard}
+              className="border-gray-300 hover:cursor-pointer"
+            >
+              Back to Dashboard
+            </Button>
+
+            <Button
+              onClick={handleEditJob}
               className="hover:cursor-pointer"
               disabled={!job?.uuid && typeof uuid !== "string"}
             >
               Edit Job
+            </Button>
+
+            <Button
+              onClick={handleCompleteJob}
+              className="hover:cursor-pointer"
+              disabled={!job?.uuid && typeof uuid !== "string"}
+            >
+              Complete Job
+            </Button>
+
+            <Button
+              onClick={handleCancelJob}
+              className="bg-red-500 hover:bg-red-800 text-white hover:cursor-pointer"
+              disabled={!job?.uuid && typeof uuid !== "string"}
+            >
+              Cancel Job
             </Button>
 
             <Button
@@ -369,6 +453,15 @@ export default function EmployeesJobsDetailsPage() {
                         {job.previous_status ? formatStatus(job.previous_status) : "—"}
                       </p>
                     </div>
+
+                    <div className="rounded-lg border bg-white p-4 md:col-span-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Urgency</p>
+                      <p className="mt-1 font-semibold text-gray-900">
+                        {hasUrgentFee
+                          ? `Urgent service applied (${formatCurrency(urgentFeeAmount)})`
+                          : "Standard priority"}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="mt-4 rounded-lg border bg-white p-4">
@@ -378,6 +471,27 @@ export default function EmployeesJobsDetailsPage() {
                     </div>
                     <p className="font-semibold text-gray-900">{job.job_address || "No address available"}</p>
                   </div>
+
+                  {job.notes ? (
+                    <div className="mt-4 rounded-lg border bg-white p-4">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Notes</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">{job.notes}</p>
+                    </div>
+                  ) : null}
+
+                  {job.client_schedule_message ? (
+                    <div className="mt-4 rounded-lg border bg-white p-4">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Client Schedule Message
+                      </p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
+                        {job.client_schedule_message}
+                      </p>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Sent: {formatDateTime(job.client_schedule_message_sent_at)}
+                      </p>
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
 
@@ -469,16 +583,50 @@ export default function EmployeesJobsDetailsPage() {
                         );
                       })}
 
+                      {hasUrgentFee ? (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <h3 className="text-base font-semibold text-gray-900">Urgent Service Fee</h3>
+                              <p className="mt-1 text-sm text-gray-700">
+                                High-priority or urgent scheduling charge applied to this job.
+                              </p>
+                            </div>
+                            <span className="text-base font-bold text-gray-900">
+                              {formatCurrency(urgentFeeAmount)}
+                            </span>
+                          </div>
+                        </div>
+                      ) : null}
+
                       <div className="rounded-xl border bg-gray-50 p-4">
                         <div className="space-y-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Services Subtotal</span>
+                            <span className="font-medium text-gray-900">
+                              {formatCurrency(serviceSubtotalDisplay)}
+                            </span>
+                          </div>
+
+                          {hasUrgentFee ? (
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">Urgent Fee</span>
+                              <span className="font-medium text-gray-900">
+                                {formatCurrency(urgentFeeAmount)}
+                              </span>
+                            </div>
+                          ) : null}
+
                           <div className="flex items-center justify-between">
                             <span className="text-gray-600">Subtotal</span>
                             <span className="font-medium text-gray-900">{formatCurrency(subtotalAmount)}</span>
                           </div>
+
                           <div className="flex items-center justify-between">
                             <span className="text-gray-600">GST</span>
                             <span className="font-medium text-gray-900">{formatCurrency(gstAmount)}</span>
                           </div>
+
                           <div className="flex items-center justify-between border-t pt-2">
                             <span className="font-semibold text-gray-900">Total</span>
                             <span className="font-bold text-gray-900">{formatCurrency(totalAmount)}</span>
@@ -570,16 +718,62 @@ export default function EmployeesJobsDetailsPage() {
                 <CardContent className="p-6">
                   <div className="mb-5 flex items-center gap-2">
                     <ImageIcon className="h-5 w-5 text-green-700" />
+                    <h2 className="text-xl font-semibold text-gray-900">Quote Images</h2>
+                  </div>
+
+                  {quoteImages.length === 0 ? (
+                    <div className="rounded-lg border border-dashed bg-gray-50 p-4 text-sm text-gray-600">
+                      No quote images attached.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                      {quoteImages.map((image, index) => {
+                        const imageUrl = getImageUrl(image);
+                        return (
+                          <button
+                            key={`${imageUrl}-${index}`}
+                            type="button"
+                            onClick={() => imageUrl && openImage(imageUrl)}
+                            className="overflow-hidden rounded-xl border bg-white text-left shadow-sm transition hover:shadow-md"
+                          >
+                            {imageUrl ? (
+                              <img
+                                src={imageUrl}
+                                alt={image.alt || image.label || `Quote image ${index + 1}`}
+                                className="h-44 w-full cursor-pointer object-cover transition-transform hover:scale-[1.05]"
+                              />
+                            ) : (
+                              <div className="flex h-44 items-center justify-center bg-gray-100 text-sm text-gray-500">
+                                No preview
+                              </div>
+                            )}
+                            <div className="p-3">
+                              <p className="truncate text-sm font-medium text-gray-900">
+                                {image.label || image.file_name || `Image ${index + 1}`}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardContent className="p-6">
+                  <div className="mb-5 flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5 text-green-700" />
                     <h2 className="text-xl font-semibold text-gray-900">Job Images</h2>
                   </div>
 
-                  {images.length === 0 ? (
+                  {jobImages.length === 0 ? (
                     <div className="rounded-lg border border-dashed bg-gray-50 p-4 text-sm text-gray-600">
                       No images attached to this job.
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-                      {images.map((image, index) => {
+                      {jobImages.map((image, index) => {
                         const imageUrl = getImageUrl(image);
                         return (
                           <button
@@ -648,8 +842,20 @@ export default function EmployeesJobsDetailsPage() {
                     </div>
 
                     <div className="flex items-start justify-between gap-4">
-                      <span className="text-gray-600">Images</span>
-                      <span className="font-medium text-gray-900">{images.length}</span>
+                      <span className="text-gray-600">Quote Images</span>
+                      <span className="font-medium text-gray-900">{quoteImages.length}</span>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-gray-600">Job Images</span>
+                      <span className="font-medium text-gray-900">{jobImages.length}</span>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-gray-600">Urgent Fee</span>
+                      <span className="font-medium text-gray-900">
+                        {hasUrgentFee ? formatCurrency(urgentFeeAmount) : "No"}
+                      </span>
                     </div>
 
                     <div className="border-t pt-3">
@@ -728,6 +934,19 @@ export default function EmployeesJobsDetailsPage() {
                       )}
                       <span className="text-sm text-gray-800">
                         {job.is_recurring ? "Recurring schedule enabled" : "One-off job"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 rounded-lg bg-gray-50 p-3">
+                      {hasUrgentFee ? (
+                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      )}
+                      <span className="text-sm text-gray-800">
+                        {hasUrgentFee
+                          ? `Urgent fee applied (${formatCurrency(urgentFeeAmount)})`
+                          : "No urgent fee applied"}
                       </span>
                     </div>
                   </div>

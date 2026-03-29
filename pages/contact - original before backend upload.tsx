@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
 import { useUI } from "../context/UIContext";
+import supabase from "@/config/db";
 import Header from "@/components/headers/Header";
 import GoogleAddressAutocomplete from "@/components/GoogleAddressAutocomplete";
 import { nzPhoneFromIntl } from "@/utils/phone";
@@ -559,38 +560,52 @@ export default function ContactPage(props: Props) {
     }
 
     try {
-      const submitFormData = new FormData();
+      const uploadedImages = await Promise.all(
+        filledImageRows.map(async (img, index) => {
+          if (!img.file) return null;
 
-      submitFormData.append("first_name", formData.firstName.trim());
-      submitFormData.append("last_name", formData.lastName.trim());
-      submitFormData.append("mobile", formData.mobile.trim());
-      submitFormData.append("landline", formData.landline.trim());
-      submitFormData.append(
-        "preferred_contact_method",
-        preferredContactMethod
-      );
-      submitFormData.append("email", formData.email.trim().toLowerCase());
-      submitFormData.append("message", formData.message.trim());
-      submitFormData.append("address", formData.address.trim());
-      submitFormData.append(
-        "recurrence_frequency",
-        formData.recurrenceFrequency
-      );
-      submitFormData.append("urgent", String(isUrgent));
-      submitFormData.append("services", JSON.stringify(selectedServicesPayload));
+          const fileName = `quotes/${Date.now()}_${index}_${img.file.name}`;
 
-      filledImageRows.forEach((img, index) => {
-        if (!img.file) return;
-        submitFormData.append("images", img.file);
-        submitFormData.append(
-          "image_labels",
-          img.label.trim() || `Image ${index + 1}`
-        );
-      });
+          const { error } = await supabase.storage
+            .from("quote-images")
+            .upload(fileName, img.file);
+
+          if (error) throw error;
+
+          const url = supabase.storage
+            .from("quote-images")
+            .getPublicUrl(fileName).data.publicUrl;
+
+          return {
+            label: img.label.trim() || `Image ${index + 1}`,
+            url,
+          };
+        })
+      );
+
+      const imagesPayload = uploadedImages.filter(Boolean);
+
+      const payload = {
+        first_name: formData.firstName.trim(),
+        last_name: formData.lastName.trim(),
+        mobile: formData.mobile.trim(),
+        landline: formData.landline.trim(),
+        preferred_contact_method: preferredContactMethod,
+        email: formData.email.trim().toLowerCase(),
+        message: formData.message.trim(),
+        address: formData.address.trim(),
+        recurrence_frequency: formData.recurrenceFrequency,
+        urgent: isUrgent,
+        services: selectedServicesPayload,
+        images: imagesPayload,
+      };
 
       const res = await fetch(`/api/quotes/create`, {
         method: "POST",
-        body: submitFormData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
 
       const responseData = await res.json().catch(() => null);

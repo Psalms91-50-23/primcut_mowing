@@ -46,12 +46,15 @@ export default function GoogleAddressAutocomplete({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const autocompleteRef =
     useRef<google.maps.places.PlaceAutocompleteElement | null>(null);
+  const onSelectRef = useRef(onSelect);
+
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
 
   useEffect(() => {
     if (!isLoaded || !containerRef.current || disabled) return;
-
-    const container = containerRef.current;
-    container.innerHTML = "";
+    if (autocompleteRef.current) return; // create only once
 
     const placeAutocomplete = new google.maps.places.PlaceAutocompleteElement({
       componentRestrictions: { country: [country] },
@@ -62,9 +65,12 @@ export default function GoogleAddressAutocomplete({
       },
     });
 
+    const container = containerRef.current;
+    container.innerHTML = "";
     container.appendChild(placeAutocomplete);
+    autocompleteRef.current = placeAutocomplete;
 
-    const syncInputValue = () => {
+    const syncInput = () => {
       const input = placeAutocomplete.shadowRoot?.querySelector("input");
       if (input) {
         (input as HTMLInputElement).value = value || "";
@@ -72,9 +78,12 @@ export default function GoogleAddressAutocomplete({
       }
     };
 
-    syncInputValue();
+    syncInput();
 
-    const handleSelect = async ({ placePrediction }: any) => {
+    const handleSelect = async (event: any) => {
+      const placePrediction = event.placePrediction;
+      if (!placePrediction) return;
+
       const place = placePrediction.toPlace();
 
       await place.fetchFields({
@@ -94,27 +103,25 @@ export default function GoogleAddressAutocomplete({
       const postcode = postcodeComponent?.longName || "";
       const fullAddress = postcode ? `${address} ${postcode}` : address;
 
-      onSelect(fullAddress);
+      onSelectRef.current(fullAddress);
     };
 
     placeAutocomplete.addEventListener("gmp-select", handleSelect);
-    autocompleteRef.current = placeAutocomplete;
-
-    const timer = window.setTimeout(syncInputValue, 0);
 
     return () => {
-      window.clearTimeout(timer);
       placeAutocomplete.removeEventListener("gmp-select", handleSelect);
+      autocompleteRef.current = null;
       container.innerHTML = "";
     };
-  }, [isLoaded, disabled, country, placeholder, regionBias.lat, regionBias.lng, regionBias.radius, onSelect]);
+  }, [isLoaded, disabled, country, regionBias.lat, regionBias.lng, regionBias.radius]);
 
   useEffect(() => {
     const input = autocompleteRef.current?.shadowRoot?.querySelector("input");
     if (input) {
       (input as HTMLInputElement).value = value || "";
+      (input as HTMLInputElement).placeholder = placeholder;
     }
-  }, [value]);
+  }, [value, placeholder]);
 
   if (loadError) {
     return (

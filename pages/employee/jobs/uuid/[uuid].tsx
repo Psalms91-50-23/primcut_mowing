@@ -2,6 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import { getWindowPreview } from "@/utils/windowPreview";
 import { useUI } from "@/context/UIContext";
+import { useAuth, roleRedirectMap } from "@/context/AuthContext";
 
 type RecurrencePreset = "one_off" | "weekly" | "fortnightly" | "monthly";
 
@@ -59,6 +60,8 @@ type QuoteRecord = {
   total_amount?: number;
   expiry_end?: string | null;
   created_at?: string | null;
+  has_urgent_fee?: boolean;
+  urgent_fee_amount?: number | null;
 };
 
 type CustomerPreview = {
@@ -109,6 +112,8 @@ type JobRecord = {
   subtotal_amount?: number | null;
   gst_amount?: number | null;
   total_amount?: number | null;
+  has_urgent_fee?: boolean;
+  urgent_fee_amount?: number | null;
   scheduled_at?: string | null;
   scheduled_window_mins?: number | null;
   scheduled_window_preset?: string | null;
@@ -121,6 +126,7 @@ type JobRecord = {
   recurrence_count?: number | null;
   job_address?: string | null;
   notes?: string | null;
+  client_schedule_message?: string | null;
   is_completed?: boolean;
   completed_date?: string | null;
   previous_status?: string | null;
@@ -301,7 +307,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1">
-      <label className="block text-sm font-medium text-gray-900">{label}</label>
+      <label className="block text-sm font-medium text-gray-900 ">{label}</label>
       {children}
       {hint ? <p className="text-xs text-gray-500">{hint}</p> : null}
     </div>
@@ -362,12 +368,18 @@ function Alert({
 function ReadOnlyValue({
   label,
   value,
+  textAlignedRight,
+  paddingRight,
 }: {
   label: string;
   value?: React.ReactNode;
+  textAlignedRight?: boolean;
+  paddingRight?: string;
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+    <div
+      className={`${textAlignedRight ? "text-right" : ""} rounded-lg border border-gray-200 bg-gray-50 p-2 ${paddingRight || ""}`}
+    >
       <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">{label}</p>
       <div className="mt-1 break-words text-sm text-gray-900">{value || "—"}</div>
     </div>
@@ -379,6 +391,7 @@ export default function JobPage() {
   const router = useRouter();
   const { uuid } = router.query;
   const { openImage } = useUI();
+  const { user, role } = useAuth();
 
   const [job, setJob] = useState<JobRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -406,6 +419,7 @@ export default function JobPage() {
   const [recurrencePreset, setRecurrencePreset] = useState<RecurrencePreset>("one_off");
   const [endDateLocal, setEndDateLocal] = useState("");
   const [notes, setNotes] = useState("");
+  const [clientScheduleMessage, setClientScheduleMessage] = useState("");
   const [dirty, setDirty] = useState(false);
 
   const [recurrenceDrafts, setRecurrenceDrafts] = useState<Record<string, RecurrenceDraft>>({});
@@ -416,6 +430,11 @@ export default function JobPage() {
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const [sendScheduleEmail, setSendScheduleEmail] = useState(false);
+  const [notificationType, setNotificationType] = useState<"schedule_update" | "rescheduled">(
+    "schedule_update"
+  );
 
   const fetchJob = async () => {
     if (!uuid) return null;
@@ -435,6 +454,7 @@ export default function JobPage() {
       setRecurrencePreset(deriveRecurrencePreset(j));
       setEndDateLocal(toDateLocalValue(j?.recurrence_end_date));
       setNotes(j?.notes || "");
+      setClientScheduleMessage(j?.client_schedule_message || "");
       setDirty(false);
 
       if (Array.isArray(j?.job_recurrences) && j.job_recurrences.length > 0) {
@@ -612,9 +632,43 @@ export default function JobPage() {
     return new Date(`${endDateLocal}T00:00:00`).toLocaleDateString("en-NZ");
   }, [endDateLocal]);
 
+  const resolvedQuoteUrgentFeeAmount = useMemo(() => {
+    return Number(resolvedQuote?.urgent_fee_amount ?? 0);
+  }, [resolvedQuote]);
+
+  const resolvedJobUrgentFeeAmount = useMemo(() => {
+    return Number(job?.urgent_fee_amount ?? 0);
+  }, [job]);
+
+  const resolvedQuoteHasUrgentFee = useMemo(() => {
+    return Boolean(resolvedQuote?.has_urgent_fee) && resolvedQuoteUrgentFeeAmount > 0;
+  }, [resolvedQuote, resolvedQuoteUrgentFeeAmount]);
+
+  const resolvedJobHasUrgentFee = useMemo(() => {
+    return Boolean(job?.has_urgent_fee) && resolvedJobUrgentFeeAmount > 0;
+  }, [job, resolvedJobUrgentFeeAmount]);
+
   const canSave = dirty && !saving;
   const nextPageLoading = recurrencesLoading && pageDirection === "next";
   const prevPageLoading = recurrencesLoading && pageDirection === "prev";
+
+  const dashboardPath =
+    (role && roleRedirectMap[role]) ||
+    (user?.role && roleRedirectMap[user.role]) ||
+    "/dashboard";
+
+  const handleBackToDashboard = () => {
+    router.push(dashboardPath);
+  };
+
+  const handleBackToPreviousPage = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push(dashboardPath);
+  };
 
   const onSave = async () => {
     if (!uuid) return;
@@ -638,7 +692,7 @@ export default function JobPage() {
         recurrencePreset !== "one_off" && endDateLocal
           ? localDateToISOEndOfDay(endDateLocal)
           : null;
-
+      console.log("PATCHING SCHEDULE", `/api/employee/jobs/${uuid}/schedule`);
       const res = await fetch(`/api/employee/jobs/${uuid}/schedule`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -653,7 +707,10 @@ export default function JobPage() {
             recurrence_interval,
             recurrence_end_date,
             notes,
+            client_schedule_message: clientScheduleMessage || null,
             regenerate_recurrences: is_recurring,
+            send_schedule_email: sendScheduleEmail,
+            notification_type: notificationType,
           },
         }),
       });
@@ -661,7 +718,20 @@ export default function JobPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Failed to update job");
 
-      setSuccessMsg("Job updated.");
+      if (data?.emailSent) {
+        setSuccessMsg(
+          notificationType === "rescheduled"
+            ? "Job updated and reschedule email sent to customer."
+            : "Job updated and schedule email sent to customer."
+        );
+      } else if (sendScheduleEmail && data?.emailError) {
+        setSuccessMsg(`Job updated, but email was not sent: ${data.emailError}`);
+      } else {
+        setSuccessMsg("Job updated.");
+      }
+
+      setSendScheduleEmail(false);
+      setNotificationType("schedule_update");
       setRecurrencePage(1);
 
       const loadedJob = await fetchJob();
@@ -681,7 +751,7 @@ export default function JobPage() {
     setSaving(true);
     setErrorMsg(null);
     setSuccessMsg(null);
-
+    console.log("PATCHING SCHEDULE on clear", `/api/employee/jobs/${uuid}/schedule`);
     try {
       const res = await fetch(`/api/employee/jobs/${uuid}/schedule`, {
         method: "PATCH",
@@ -697,6 +767,7 @@ export default function JobPage() {
             recurrence_interval: null,
             recurrence_end_date: null,
             notes,
+            client_schedule_message: clientScheduleMessage || null,
             regenerate_recurrences: false,
           },
         }),
@@ -727,6 +798,7 @@ export default function JobPage() {
     setSuccessMsg(null);
 
     try {
+      console.log("PATCHING SCHEDULE POST", `/api/employee/jobs/${uuid}/schedule`);
       const res = await fetch(`/api/employee/jobs/${uuid}/recurrences/extend`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -781,7 +853,7 @@ export default function JobPage() {
 
     try {
       const scheduled_at = draft.scheduledLocal ? localDatetimeToISO(draft.scheduledLocal) : null;
-
+      console.log("PATCHING SCHEDULE onSaveRecurrence", `/api/employee/jobs/${uuid}/schedule`);
       const res = await fetch(`/api/employee/jobs/${uuid}/schedule`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -793,6 +865,8 @@ export default function JobPage() {
             scheduled_window_mins: scheduled_at ? draft.scheduledWindowMins : null,
             scheduled_window_preset: scheduled_at ? draft.windowPreset ?? "anytime" : null,
             is_custom_schedule: true,
+            send_schedule_email: sendScheduleEmail,
+            notification_type: notificationType,
           },
         }),
       });
@@ -800,7 +874,20 @@ export default function JobPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Failed to update recurrence");
 
-      setSuccessMsg(`Recurrence updated.`);
+      if (data?.emailSent) {
+        setSuccessMsg(
+          notificationType === "rescheduled"
+            ? "Recurrence updated and reschedule email sent to customer."
+            : "Recurrence updated and schedule email sent to customer."
+        );
+      } else if (sendScheduleEmail && data?.emailError) {
+        setSuccessMsg(`Recurrence updated, but email was not sent: ${data.emailError}`);
+      } else {
+        setSuccessMsg("Recurrence updated.");
+      }
+
+      setSendScheduleEmail(false);
+      setNotificationType("schedule_update");
       await fetchRecurrences(recurrencePage);
     } catch (err: any) {
       console.error(err);
@@ -821,6 +908,7 @@ export default function JobPage() {
     setSuccessMsg(null);
 
     try {
+      console.log("PATCHING SCHEDULE onResetRecurrenceToJobDefault", `/api/employee/jobs/${uuid}/schedule`);
       const res = await fetch(`/api/employee/jobs/${uuid}/schedule`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -901,7 +989,7 @@ export default function JobPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6 md:p-10">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">Job</h1>
@@ -909,18 +997,28 @@ export default function JobPage() {
             <Badge>{job.status || "unknown"}</Badge>
             {job.is_recurring ? <Badge>Recurring</Badge> : <Badge>One-off</Badge>}
             {job.is_completed ? <Badge>Completed</Badge> : null}
+            {resolvedJobHasUrgentFee ? <Badge>Urgent fee applied</Badge> : null}
           </div>
           <p className="text-sm text-gray-600">{jobAddress}</p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="secondary"
-            onClick={() => router.push("/dashboard/employee/jobs")}
+            onClick={handleBackToPreviousPage}
             disabled={saving || extending}
           >
-            Back to jobs
+            Back to previous page
           </Button>
+
+          <Button
+            variant="secondary"
+            onClick={handleBackToDashboard}
+            disabled={saving || extending}
+          >
+            Back to dashboard
+          </Button>
+
           <Button onClick={onSave} disabled={!canSave}>
             {saving ? "Saving..." : "Save job changes"}
           </Button>
@@ -961,6 +1059,11 @@ export default function JobPage() {
               <p className="mt-1 text-xs text-gray-500">
                 Subtotal: {formatMoney(job.subtotal_amount)} • GST: {formatMoney(job.gst_amount)}
               </p>
+              {resolvedJobHasUrgentFee ? (
+                <p className="mt-1 text-xs font-medium text-red-700">
+                  Includes urgent fee in subtotal: {formatMoney(resolvedJobUrgentFeeAmount)}
+                </p>
+              ) : null}
             </div>
 
             <div className="rounded-lg border border-gray-200 p-4">
@@ -987,6 +1090,13 @@ export default function JobPage() {
               <p className="text-xs font-medium text-gray-500">Recurrence end</p>
               <p className="mt-1 text-sm font-semibold text-gray-900">
                 {job.recurrence_end_date ? formatDate(job.recurrence_end_date) : "No end date"}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2">
+              <p className="text-xs font-medium text-gray-500">Client schedule message</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-gray-900">
+                {job.client_schedule_message || "No client schedule message saved."}
               </p>
             </div>
 
@@ -1138,9 +1248,17 @@ export default function JobPage() {
                       </div>
 
                       <div className="rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-900">
-                        <span className="font-semibold">Pricing:</span>{" "}
-                        {formatMoney(r.total_amount ?? job.total_amount)} • Source:{" "}
-                        {r.pricing_source || "job default"}
+                        <div>
+                          <span className="font-semibold">Pricing:</span>{" "}
+                          {formatMoney(r.total_amount ?? job.total_amount)} • Source:{" "}
+                          {r.pricing_source || "job default"}
+                        </div>
+                        {resolvedJobHasUrgentFee ? (
+                          <div className="mt-1">
+                            <span className="font-semibold">Urgent fee:</span>{" "}
+                            {formatMoney(resolvedJobUrgentFeeAmount)}
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
@@ -1285,9 +1403,9 @@ export default function JobPage() {
                 setScheduledDateLocal(e.target.value);
                 setDirty(true);
               }}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700 hover:cursor-pointer"
             />
-            <div className="mt-2 text-xs text-gray-600">
+            <div className="mt-2 text-xs text-gray-600 ">
               Preview: <span className="font-medium text-gray-900">{scheduledPreview}</span>
             </div>
           </Field>
@@ -1304,7 +1422,7 @@ export default function JobPage() {
                 setScheduledWindowMins(selected?.mins ?? 240);
                 setDirty(true);
               }}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700 hover:cursor-pointer"
               disabled={!scheduledDateLocal}
             >
               {WINDOW_OPTIONS.map((opt) => (
@@ -1326,7 +1444,7 @@ export default function JobPage() {
                 setRecurrencePreset(e.target.value as RecurrencePreset);
                 setDirty(true);
               }}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700 hover:cursor-pointer"
             >
               <option value="one_off">One-Off</option>
               <option value="weekly">Weekly</option>
@@ -1357,6 +1475,38 @@ export default function JobPage() {
             </Field>
           )}
 
+          <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Customer schedule message</p>
+              <p className="mt-1 text-xs text-gray-600">
+                This message can be sent to the customer with the schedule update email.
+              </p>
+            </div>
+
+            <textarea
+              value={clientScheduleMessage}
+              onChange={(e) => {
+                setClientScheduleMessage(e.target.value);
+                setDirty(true);
+              }}
+              placeholder="Add a customer-facing schedule message..."
+              className="min-h-[140px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700"
+            />
+
+            <p className="text-xs text-gray-500">
+              Example: This job has been scheduled as a priority request. We will aim to attend on
+              the date shown below, or the next available day if required.
+            </p>
+          </div>
+          <label className="flex items-center gap-3 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={sendScheduleEmail}
+              onChange={(e) => setSendScheduleEmail(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-green-700 focus:ring-green-700 hover:cursor-pointer"
+            />
+            Send email to customer
+          </label>
           <div className="flex flex-col gap-2 pt-2">
             <Button onClick={onSave} disabled={!canSave}>
               {saving ? "Saving..." : "Save job changes"}
@@ -1383,7 +1533,10 @@ export default function JobPage() {
                 Read-only reference from the original quote for this job.
               </p>
             </div>
-            {resolvedQuote?.status ? <Badge>{resolvedQuote.status}</Badge> : null}
+            <div className="flex flex-wrap gap-2">
+              {resolvedQuote?.status ? <Badge>{resolvedQuote.status}</Badge> : null}
+              {resolvedQuoteHasUrgentFee ? <Badge>Urgent fee on quote</Badge> : null}
+            </div>
           </div>
 
           {quoteLoading ? (
@@ -1400,7 +1553,14 @@ export default function JobPage() {
                 <ReadOnlyValue label="Job address" value={jobAddress} />
                 <ReadOnlyValue label="Quote address" value={quoteAddress} />
                 <ReadOnlyValue label="Quote UUID" value={resolvedQuote?.uuid || job?.quote_uuid || "—"} />
-                <ReadOnlyValue label="Customer" value={resolvedCustomer?.full_name || `${resolvedQuote?.contact_first_name || ""} ${resolvedQuote?.contact_last_name || ""}`.trim() || "—"} />
+                <ReadOnlyValue
+                  label="Customer"
+                  value={
+                    resolvedCustomer?.full_name ||
+                    `${resolvedQuote?.contact_first_name || ""} ${resolvedQuote?.contact_last_name || ""}`.trim() ||
+                    "—"
+                  }
+                />
                 <ReadOnlyValue label="Email" value={resolvedQuote?.contact_email || resolvedCustomer?.email || "—"} />
                 <ReadOnlyValue label="Mobile" value={resolvedQuote?.contact_mobile || resolvedCustomer?.mobile || "—"} />
                 <ReadOnlyValue label="Landline" value={resolvedQuote?.contact_landline || resolvedCustomer?.landline || "—"} />
@@ -1409,6 +1569,14 @@ export default function JobPage() {
                   value={resolvedQuote?.created_at ? formatDate(resolvedQuote.created_at) : "—"}
                 />
                 <ReadOnlyValue label="Quote total" value={formatMoney(resolvedQuote?.total_amount)} />
+                <ReadOnlyValue
+                  label="Urgent fee"
+                  value={
+                    resolvedQuoteHasUrgentFee
+                      ? formatMoney(resolvedQuoteUrgentFeeAmount)
+                      : "No urgent fee"
+                  }
+                />
                 <ReadOnlyValue
                   label="Expiry"
                   value={resolvedQuote?.expiry_end ? formatDate(resolvedQuote.expiry_end) : "No expiry date"}
@@ -1443,7 +1611,6 @@ export default function JobPage() {
                                   Qty: {quantity || 0} • Unit price: {formatMoney(unitPrice)}
                                 </p>
                               </div>
-
                               <p className="text-sm font-semibold text-gray-900">
                                 {formatMoney(lineTotal)}
                               </p>
@@ -1452,25 +1619,70 @@ export default function JobPage() {
                         );
                       }
                     )}
+
+                    {resolvedQuoteHasUrgentFee ? (
+                      <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-red-900">Urgent fee</p>
+                            <p className="mt-1 text-xs text-red-700">
+                              Applied to this quote due to urgency.
+                            </p>
+                          </div>
+                          <p className="text-sm font-semibold text-red-900">
+                            {formatMoney(resolvedQuoteUrgentFeeAmount)}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="text-sm text-gray-500">No services found on this quote.</p>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
                 <ReadOnlyValue
                   label="Subtotal"
+                  textAlignedRight
+                  paddingRight="pr-5"
                   value={formatMoney(resolvedQuote?.subtotal_amount ?? job?.subtotal_amount)}
                 />
                 <ReadOnlyValue
                   label="GST"
+                  textAlignedRight
+                  paddingRight="pr-5"
                   value={formatMoney(resolvedQuote?.gst_amount ?? job?.gst_amount)}
                 />
                 <ReadOnlyValue
                   label="Total"
+                  textAlignedRight
+                  paddingRight="pr-5"
                   value={formatMoney(resolvedQuote?.total_amount ?? job?.total_amount)}
                 />
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm font-semibold text-gray-900">Job pricing snapshot</p>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                  <ReadOnlyValue
+                    label="Job subtotal"
+                    textAlignedRight
+                    value={formatMoney(job?.subtotal_amount)}
+                  />
+                  <ReadOnlyValue
+                    label="Job GST"
+                    textAlignedRight
+                    paddingRight="pr-5"
+                    value={formatMoney(job?.gst_amount)}
+                  />
+                  <ReadOnlyValue
+                    label="Job total"
+                    textAlignedRight
+                    paddingRight="pr-5"
+                    value={formatMoney(job?.total_amount)}
+                  />
+                </div>
               </div>
 
               <div className="space-y-3">

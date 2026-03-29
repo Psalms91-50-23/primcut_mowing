@@ -14,12 +14,11 @@ import {
   X,
   Users,
   Plus,
-  Phone,
-  Mail,
-  MapPin,
+  Sparkles,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import  GoogleAddressAutocomplete  from "@/components/GoogleAddressAutocomplete";
+import GoogleAddressAutocomplete from "@/components/GoogleAddressAutocomplete";
 import { Button } from "@/components/ui/button";
 import { useAuth, roleRedirectMap } from "../../../context/AuthContext";
 import { useRoleRedirect } from "@/hooks/useRoleRedirect";
@@ -244,16 +243,6 @@ function asMoney(value: unknown) {
   }).format(Number.isFinite(num) ? num : 0);
 }
 
-function formatDate(date?: string | null) {
-  if (!date) return "—";
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "—";
-
-  return new Intl.DateTimeFormat("en-NZ", {
-    dateStyle: "medium",
-  }).format(parsed);
-}
-
 function formatDateTime(date?: string | null) {
   if (!date) return "—";
   const parsed = new Date(date);
@@ -270,7 +259,7 @@ function normalizeStatus(status?: string | null) {
 }
 
 function getQuoteDisplayId(quote: QuoteRecord) {
-  return quote.quote_number || quote.uuid || `Quote #${quote.id ?? "—"}`;
+  return quote.uuid;
 }
 
 function getJobDisplayName(job: JobRecord) {
@@ -331,6 +320,62 @@ function getDefaultContactForm(): ContactFormState {
   };
 }
 
+function getContactFormValues(contact?: CustomerContactRecord | null): ContactFormState {
+  return {
+    first_name: contact?.first_name || "",
+    last_name: contact?.last_name || "",
+    email: contact?.email || "",
+    mobile_phone: contact?.mobile_phone || "",
+    landline_phone: contact?.landline_phone || "",
+    role: contact?.role || "",
+    notes: contact?.notes || "",
+    is_primary: !!contact?.is_primary,
+    is_billing_contact: !!contact?.is_billing_contact,
+    is_site_contact: !!contact?.is_site_contact,
+  };
+}
+
+function isQuoteAwaitingClientAcceptance(quote: QuoteRecord) {
+  const status = normalizeStatus(quote.status);
+
+  if (
+    ["awaiting_acceptance", "awaiting acceptance", "sent"].includes(status) &&
+    quote.is_quote_sent_to_client
+  ) {
+    return true;
+  }
+
+  if (
+    ["pending_acceptance", "pending acceptance", "awaiting_client_acceptance"].includes(
+      status
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function isQuoteAccepted(quote: QuoteRecord) {
+  const status = normalizeStatus(quote.status);
+  return ["accepted", "approved"].includes(status);
+}
+
+function isQuoteExpired(quote: QuoteRecord) {
+  if (!quote.expiry_end) return false;
+  const expiryMs = new Date(quote.expiry_end).getTime();
+  if (Number.isNaN(expiryMs)) return false;
+  return expiryMs < Date.now();
+}
+
+function getAwaitingQuoteActionText(quote: QuoteRecord) {
+  if (isQuoteExpired(quote)) {
+    return "This quote has expired. Contact the business if you still want to proceed.";
+  }
+
+  return "This quote is waiting for your review and acceptance.";
+}
+
 async function tryFetchJson(urls: string[], init?: RequestInit) {
   let lastError: any = null;
 
@@ -367,6 +412,7 @@ async function tryFetchJson(urls: string[], init?: RequestInit) {
 }
 
 export default function CustomerDashboard() {
+  
   const { user, logout, loading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -382,6 +428,9 @@ export default function CustomerDashboard() {
     contacts: [],
   });
 
+  const [showCustomerDetails, setShowCustomerDetails] = useState(false);
+  const [showAlternativeContacts, setShowAlternativeContacts] = useState(false);
+
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [customerForm, setCustomerForm] = useState<CustomerFormState>(
@@ -390,7 +439,8 @@ export default function CustomerDashboard() {
   const [customerSaveError, setCustomerSaveError] = useState("");
   const [customerSaveSuccess, setCustomerSaveSuccess] = useState("");
 
-  const [isAddingContact, setIsAddingContact] = useState(false);
+  const [contactMode, setContactMode] = useState<"add" | "edit" | null>(null);
+  const [editingContactUuid, setEditingContactUuid] = useState<string | null>(null);
   const [savingContact, setSavingContact] = useState(false);
   const [contactForm, setContactForm] = useState<ContactFormState>(
     getDefaultContactForm()
@@ -409,10 +459,8 @@ export default function CustomerDashboard() {
     if (customerName?.trim()) return customerName;
 
     return (
-      formatFullName(
-        user?.first_name ?? undefined,
-        user?.last_name ?? undefined
-      ) || "there"
+      formatFullName(user?.first_name ?? undefined, user?.last_name ?? undefined) ||
+      "there"
     );
   }, [dashboard.customer, user]);
 
@@ -434,7 +482,9 @@ export default function CustomerDashboard() {
 
       try {
         const customerPayload = await tryFetchJson(
-          [user?.customer_uuid ? `/api/customers/uuid/${user.customer_uuid}` : ""].filter(Boolean)
+          [user?.customer_uuid ? `/api/customers/uuid/${user.customer_uuid}` : ""].filter(
+            Boolean
+          )
         );
 
         customer = toObject<CustomerRecord>(customerPayload);
@@ -472,7 +522,6 @@ export default function CustomerDashboard() {
           (contact) => !contact?.is_deleted
         ),
       });
-
       setCustomerForm(getCustomerFormValues(customer));
     } catch (err: any) {
       setError(err?.message || "Failed to load customer dashboard.");
@@ -503,12 +552,23 @@ export default function CustomerDashboard() {
     return dashboard.jobs.flatMap((job) => getJobRecurrences(job));
   }, [dashboard.jobs]);
 
+  const awaitingAcceptanceQuotes = useMemo(() => {
+    return [...dashboard.quotes]
+      .filter((quote) => !quote?.is_deleted)
+      .filter((quote) => isQuoteAwaitingClientAcceptance(quote))
+      .sort((a, b) => {
+        const aTime = new Date(a.quote_sent_at || a.updated_at || a.created_at || 0).getTime();
+        const bTime = new Date(b.quote_sent_at || b.updated_at || b.created_at || 0).getTime();
+        return bTime - aTime;
+      });
+  }, [dashboard.quotes]);
+
   const stats = useMemo(() => {
     const quoteList = dashboard.quotes || [];
     const jobList = dashboard.jobs || [];
     const recurrenceList = allRecurrences || [];
 
-    const upcomingJobs = jobList.filter((job) => {
+    const upcomingJobsCount = jobList.filter((job) => {
       const date = getJobDate(job);
       if (!date) return false;
       return new Date(date).getTime() >= new Date().getTime();
@@ -519,10 +579,7 @@ export default function CustomerDashboard() {
       return ["pending", "sent", "draft", "awaiting_acceptance"].includes(status);
     });
 
-    const acceptedQuotes = quoteList.filter((quote) => {
-      const status = normalizeStatus(quote.status);
-      return ["accepted", "approved"].includes(status);
-    });
+    const acceptedQuotes = quoteList.filter((quote) => isQuoteAccepted(quote));
 
     const totalQuoted = quoteList.reduce((sum, quote) => {
       return sum + Number(quote.total_amount || 0);
@@ -531,12 +588,13 @@ export default function CustomerDashboard() {
     return {
       totalQuotes: quoteList.length,
       pendingQuotes: pendingQuotes.length,
-      upcomingJobs: upcomingJobs.length,
+      awaitingAcceptanceQuotes: awaitingAcceptanceQuotes.length,
+      upcomingJobs: upcomingJobsCount.length,
       recurringServices: recurrenceList.length,
       acceptedQuotes: acceptedQuotes.length,
       totalQuoted,
     };
-  }, [dashboard.quotes, dashboard.jobs, allRecurrences]);
+  }, [dashboard.quotes, dashboard.jobs, allRecurrences, awaitingAcceptanceQuotes]);
 
   const recentQuotes = useMemo(() => {
     return [...dashboard.quotes]
@@ -587,6 +645,13 @@ export default function CustomerDashboard() {
       return bTime - aTime;
     });
   }, [dashboard.contacts]);
+
+  const editingContact = useMemo(() => {
+    if (!editingContactUuid) return null;
+    return (
+      dashboard.contacts.find((contact) => contact.uuid === editingContactUuid) || null
+    );
+  }, [dashboard.contacts, editingContactUuid]);
 
   const handleCustomerFormChange = (
     field: keyof CustomerFormState,
@@ -642,10 +707,7 @@ export default function CustomerDashboard() {
       }
 
       const updatedCustomer =
-        toObject<CustomerRecord>(payload) ||
-        payload?.customer ||
-        payload?.data ||
-        null;
+        toObject<CustomerRecord>(payload) || payload?.customer || payload?.data || null;
 
       setDashboard((prev) => ({
         ...prev,
@@ -682,15 +744,26 @@ export default function CustomerDashboard() {
   const handleStartAddContact = () => {
     setContactSaveError("");
     setContactSaveSuccess("");
+    setEditingContactUuid(null);
     setContactForm(getDefaultContactForm());
-    setIsAddingContact(true);
+    setContactMode("add");
   };
 
-  const handleCancelAddContact = () => {
+  const handleStartEditContact = (contact: CustomerContactRecord) => {
     setContactSaveError("");
     setContactSaveSuccess("");
+    setEditingContactUuid(contact.uuid || null);
+    setContactForm(getContactFormValues(contact));
+    setContactMode("edit");
+    setShowAlternativeContacts(true);
+  };
+
+  const handleCancelContactForm = () => {
+    setContactSaveError("");
+    setContactSaveSuccess("");
+    setEditingContactUuid(null);
     setContactForm(getDefaultContactForm());
-    setIsAddingContact(false);
+    setContactMode(null);
   };
 
   const handleSaveContact = async () => {
@@ -701,69 +774,91 @@ export default function CustomerDashboard() {
       return;
     }
 
+    const isEditing = contactMode === "edit" && !!editingContactUuid;
+
+    if (contactMode === "edit" && !editingContactUuid) {
+      setContactSaveError("Contact UUID is required.");
+      return;
+    }
+
     try {
       setSavingContact(true);
       setContactSaveError("");
       setContactSaveSuccess("");
 
-      const res = await fetch(
-        `/api/customers/uuid/${dashboard.customer.uuid}/contacts`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            first_name: contactForm.first_name.trim(),
-            last_name: contactForm.last_name.trim() || null,
-            email: contactForm.email.trim() || null,
-            mobile_phone: contactForm.mobile_phone.trim() || null,
-            landline_phone: contactForm.landline_phone.trim() || null,
-            role: contactForm.role.trim() || null,
-            notes: contactForm.notes.trim() || null,
-            is_primary: !!contactForm.is_primary,
-            is_billing_contact: !!contactForm.is_billing_contact,
-            is_site_contact: !!contactForm.is_site_contact,
-          }),
-        }
-      );
+      const url = isEditing
+        ? `/api/customer-contacts/uuid/${editingContactUuid}`
+        : `/api/customers/uuid/${dashboard.customer.uuid}/contacts`;
+
+      const method = isEditing ? "PATCH" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          first_name: contactForm.first_name.trim(),
+          last_name: contactForm.last_name.trim() || null,
+          email: contactForm.email.trim() || null,
+          mobile_phone: contactForm.mobile_phone.trim() || null,
+          landline_phone: contactForm.landline_phone.trim() || null,
+          role: contactForm.role.trim() || null,
+          notes: contactForm.notes.trim() || null,
+          is_primary: !!contactForm.is_primary,
+          is_billing_contact: !!contactForm.is_billing_contact,
+          is_site_contact: !!contactForm.is_site_contact,
+        }),
+      });
 
       const payload = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(payload?.error || "Failed to add contact.");
+        throw new Error(
+          payload?.error || (isEditing ? "Failed to update contact." : "Failed to add contact.")
+        );
       }
 
-      const newContact =
-        toObject<CustomerContactRecord>(payload) ||
-        payload?.contact ||
-        payload?.data ||
-        null;
+      const savedContact =
+        toObject<CustomerContactRecord>(payload) || payload?.contact || payload?.data || null;
 
-      if (newContact) {
+      if (savedContact) {
         setDashboard((prev) => {
           let nextContacts = [...prev.contacts];
 
-          if (newContact.is_primary) {
+          if (savedContact.is_primary) {
             nextContacts = nextContacts.map((contact) => ({
               ...contact,
               is_primary: false,
             }));
           }
 
+          if (isEditing) {
+            nextContacts = nextContacts.map((contact) =>
+              contact.uuid === savedContact.uuid ? { ...contact, ...savedContact } : contact
+            );
+          } else {
+            nextContacts = [savedContact, ...nextContacts];
+          }
+
           return {
             ...prev,
-            contacts: [newContact, ...nextContacts],
+            contacts: nextContacts,
           };
         });
       } else {
         await loadDashboard(true);
       }
 
-      setContactSaveSuccess("Alternative contact added successfully.");
+      setContactSaveSuccess(
+        isEditing
+          ? "Alternative contact updated successfully."
+          : "Alternative contact added successfully."
+      );
+      setEditingContactUuid(null);
       setContactForm(getDefaultContactForm());
-      setIsAddingContact(false);
+      setContactMode(null);
     } catch (err: any) {
       setContactSaveError(err?.message || "Failed to save contact.");
     } finally {
@@ -847,7 +942,123 @@ export default function CustomerDashboard() {
 
         {!customerMissing && dashboard.customer ? (
           <>
-            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+            <section className="mb-8">
+              <Card className="rounded-2xl shadow-sm border-0 bg-gradient-to-r from-amber-50 via-white to-green-50">
+                <CardContent className="p-6">
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                        <Sparkles className="h-5 w-5" />
+                      </div>
+
+                      <div>
+                        <h2 className="text-xl font-semibold text-slate-900">
+                          Action Required
+                        </h2>
+                        <p className="text-sm text-slate-600 mt-1">
+                          Keep on top of quotes that need your attention and create a new
+                          quote request when needed.
+                        </p>
+
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          <Button
+                            onClick={() => router.push("/contact")}
+                            className="gap-2 hover:cursor-pointer"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Create Quote Request
+                          </Button>
+
+                          {awaitingAcceptanceQuotes.length > 0 ? (
+                            <div className="inline-flex items-center rounded-full bg-amber-100 px-3 py-2 text-sm font-medium text-amber-800">
+                              {awaitingAcceptanceQuotes.length} quote
+                              {awaitingAcceptanceQuotes.length === 1 ? "" : "s"} waiting for
+                              your acceptance
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center rounded-full bg-green-100 px-3 py-2 text-sm font-medium text-green-800">
+                              No quote is currently waiting for your acceptance
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-full lg:max-w-md space-y-3">
+                      {awaitingAcceptanceQuotes.length === 0 ? (
+                        <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                          <p className="font-medium text-green-900">All clear for now</p>
+                          <p className="text-sm text-green-700 mt-1">
+                            When the business sends you a quote to review, it will appear
+                            here.
+                          </p>
+                        </div>
+                      ) : (
+                        awaitingAcceptanceQuotes.slice(0, 3).map((quote) => (
+                          <div
+                            key={quote.uuid || quote.id}
+                            className="rounded-xl border border-amber-200 bg-white p-4 cursor-pointer hover:shadow-md transition"
+                            onClick={() => router.push(`/quotes/view/${quote.uuid}`)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-semibold text-slate-900">
+                                  {getQuoteDisplayId(quote)}
+                                </p>
+                                <p className="text-sm text-slate-500 mt-1">
+                                  Sent: {formatDateTime(quote.quote_sent_at)}
+                                </p>
+                                <p className="text-sm text-slate-500 mt-1">
+                                  Expires: {formatDateTime(quote.expiry_end)}
+                                </p>
+                              </div>
+
+                              <div className="text-right">
+                                <p className="font-semibold text-green-700">
+                                  {asMoney(quote.total_amount)}
+                                </p>
+                                <span className="inline-flex mt-2 items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                                  Awaiting your action
+                                </span>
+                              </div>
+                            </div>
+
+                            <p className="text-sm text-slate-700 mt-3">
+                              {getAwaitingQuoteActionText(quote)}
+                            </p>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {quote.quote_pdf_url ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="gap-2 hover:cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.open(quote.quote_pdf_url!, "_blank");
+                                  }}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                  View Quote PDF
+                                </Button>
+                              ) : null}
+
+                              {!isQuoteExpired(quote) ? (
+                                <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700">
+                                  Review the quote and accept if you are ready to proceed
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5 mb-8">
               <StatCard
                 title="Total Quotes"
                 value={String(stats.totalQuotes)}
@@ -857,6 +1068,11 @@ export default function CustomerDashboard() {
                 title="Pending Quotes"
                 value={String(stats.pendingQuotes)}
                 icon={<Clock3 className="h-5 w-5" />}
+              />
+              <StatCard
+                title="Awaiting Acceptance"
+                value={String(stats.awaitingAcceptanceQuotes)}
+                icon={<AlertCircle className="h-5 w-5" />}
               />
               <StatCard
                 title="Upcoming Jobs"
@@ -880,21 +1096,27 @@ export default function CustomerDashboard() {
                           <User2 className="h-5 w-5" />
                         </div>
                         <div>
-                          <h2 className="text-lg font-semibold text-slate-900">Customer Details</h2>
-                          <p className="text-sm text-slate-500">Your profile from backend</p>
+                          <h2 className="text-lg font-semibold text-slate-900">
+                            Customer Details
+                          </h2>
+                          <p className="text-sm text-slate-500">
+                            View your saved customer information
+                          </p>
                         </div>
                       </div>
 
-                      {!isEditingCustomer ? (
-                        <Button
-                          variant="outline"
-                          onClick={handleStartEditCustomer}
-                          className="gap-2 hover:cursor-pointer"
-                        >
-                          <Pencil className="h-4 w-4" />
-                          Edit
-                        </Button>
-                      ) : null}
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowCustomerDetails((prev) => !prev);
+                          if (showCustomerDetails && isEditingCustomer) {
+                            handleCancelEditCustomer();
+                          }
+                        }}
+                        className="gap-2 hover:cursor-pointer"
+                      >
+                        {showCustomerDetails ? "Hide Details" : "Show Details"}
+                      </Button>
                     </div>
 
                     {customerSaveError ? (
@@ -909,104 +1131,134 @@ export default function CustomerDashboard() {
                       </div>
                     ) : null}
 
-                    {!isEditingCustomer ? (
-                      <div className="space-y-4 text-sm">
-                        <DetailRow label="Full name" value={headerName} />
-                        <DetailRow
-                          label="Email"
-                          value={dashboard.customer?.email || user?.email || "—"}
-                        />
-                        <DetailRow
-                          label="Mobile"
-                          value={dashboard.customer?.mobile_phone || "—"}
-                        />
-                        <DetailRow
-                          label="Landline"
-                          value={dashboard.customer?.landline_phone || "—"}
-                        />
-                        <DetailRow
-                          label="Address"
-                          value={dashboard.customer?.address || "—"}
-                        />
-                        <DetailRow
-                          label="Customer type"
-                          value={dashboard.customer?.customer_type || "—"}
-                        />
-                        <DetailRow
-                          label="Customer ID"
-                          value={dashboard.customer?.uuid || user?.customer_uuid || "—"}
-                        />
-                        <DetailRow
-                          label="Joined"
-                          value={formatDate(dashboard.customer?.created_at)}
-                        />
+                    <div
+                      className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                        showCustomerDetails
+                          ? "max-h-[1200px] opacity-100 translate-y-0"
+                          : "max-h-0 opacity-0 -translate-y-1 pointer-events-none"
+                      }`}
+                    >
+                      <div className="space-y-4 rounded-xl border border-slate-200 p-4 bg-slate-50">
+                        {!isEditingCustomer ? (
+                          <>
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium text-slate-900">
+                                Customer information
+                              </p>
+
+                              <Button
+                                variant="outline"
+                                onClick={handleStartEditCustomer}
+                                className="gap-2 hover:cursor-pointer"
+                              >
+                                <Pencil className="h-4 w-4" />
+                                Edit
+                              </Button>
+                            </div>
+
+                            <div className="space-y-3 text-sm">
+                              <DetailRow
+                                label="First name"
+                                value={dashboard.customer?.first_name || "—"}
+                              />
+                              <DetailRow
+                                label="Last name"
+                                value={dashboard.customer?.last_name || "—"}
+                              />
+                              <DetailRow
+                                label="Email"
+                                value={dashboard.customer?.email || "—"}
+                              />
+                              <DetailRow
+                                label="Mobile"
+                                value={dashboard.customer?.mobile_phone || "—"}
+                              />
+                              <DetailRow
+                                label="Landline"
+                                value={dashboard.customer?.landline_phone || "—"}
+                              />
+                              <DetailRow
+                                label="Address"
+                                value={dashboard.customer?.address || "—"}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium text-slate-900">
+                                Edit customer information
+                              </p>
+                            </div>
+
+                            <InputGroup
+                              label="First name"
+                              value={customerForm.first_name}
+                              onChange={(value) =>
+                                handleCustomerFormChange("first_name", value)
+                              }
+                            />
+
+                            <InputGroup
+                              label="Last name"
+                              value={customerForm.last_name}
+                              onChange={(value) =>
+                                handleCustomerFormChange("last_name", value)
+                              }
+                            />
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <InputGroup
+                                label="Mobile"
+                                value={customerForm.mobile_phone}
+                                onChange={(value) =>
+                                  handleCustomerFormChange("mobile_phone", value)
+                                }
+                              />
+
+                              <InputGroup
+                                label="Landline"
+                                value={customerForm.landline_phone}
+                                onChange={(value) =>
+                                  handleCustomerFormChange("landline_phone", value)
+                                }
+                              />
+                            </div>
+
+                            <GoogleAddressAutocomplete
+                              label="Address"
+                              value={customerForm.address}
+                              onSelect={(value) =>
+                                handleCustomerFormChange("address", value)
+                              }
+                              helperText="Start typing and select your address from Google suggestions."
+                            />
+
+                            <div className="pt-2 flex flex-wrap gap-3">
+                              <Button
+                                onClick={handleSaveCustomer}
+                                disabled={savingCustomer}
+                                className="gap-2 hover:cursor-pointer"
+                              >
+                                <Save className="h-4 w-4" />
+                                {savingCustomer ? "Saving..." : "Save"}
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleCancelEditCustomer}
+                                disabled={savingCustomer}
+                                className="gap-2 hover:cursor-pointer"
+                              >
+                                <X className="h-4 w-4" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <InputGroup
-                          label="First name"
-                          value={customerForm.first_name}
-                          onChange={(value) => handleCustomerFormChange("first_name", value)}
-                        />
-
-                        <InputGroup
-                          label="Last name"
-                          value={customerForm.last_name}
-                          onChange={(value) => handleCustomerFormChange("last_name", value)}
-                        />
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <InputGroup
-                            label="Mobile"
-                            value={customerForm.mobile_phone}
-                            onChange={(value) =>
-                              handleCustomerFormChange("mobile_phone", value)
-                            }
-                          />
-
-                          <InputGroup
-                            label="Landline"
-                            value={customerForm.landline_phone}
-                            onChange={(value) =>
-                              handleCustomerFormChange("landline_phone", value)
-                            }
-                          />
-                        </div>
-                        <GoogleAddressAutocomplete
-                          label="Address"
-                          value={customerForm.address}
-                          onSelect={(value) => handleCustomerFormChange("address", value)}
-                          helperText="Start typing and select your address from Google suggestions."
-                        />
-                        {/* <TextAreaGroup
-                          label="Address"
-                          value={customerForm.address}
-                          onChange={(value) => handleCustomerFormChange("address", value)}
-                        /> */}
-
-                        <div className="pt-2 flex flex-wrap gap-3">
-                          <Button
-                            onClick={handleSaveCustomer}
-                            disabled={savingCustomer}
-                            className="gap-2 hover:cursor-pointer"
-                          >
-                            <Save className="h-4 w-4" />
-                            {savingCustomer ? "Saving..." : "Save"}
-                          </Button>
-
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleCancelEditCustomer}
-                            disabled={savingCustomer}
-                            className="gap-2 hover:cursor-pointer"
-                          >
-                            <X className="h-4 w-4" />
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -1027,16 +1279,18 @@ export default function CustomerDashboard() {
                         </div>
                       </div>
 
-                      {!isAddingContact ? (
-                        <Button
-                          variant="outline"
-                          onClick={handleStartAddContact}
-                          className="gap-2 hover:cursor-pointer"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Add
-                        </Button>
-                      ) : null}
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowAlternativeContacts((prev) => !prev);
+                          if (showAlternativeContacts && contactMode) {
+                            handleCancelContactForm();
+                          }
+                        }}
+                        className="gap-2 hover:cursor-pointer"
+                      >
+                        {showAlternativeContacts ? "Hide Contacts" : "Show Contacts"}
+                      </Button>
                     </div>
 
                     {contactSaveError ? (
@@ -1051,174 +1305,240 @@ export default function CustomerDashboard() {
                       </div>
                     ) : null}
 
-                    {isAddingContact ? (
-                      <div className="space-y-4 mb-5 rounded-xl border border-slate-200 p-4 bg-slate-50">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <InputGroup
-                            label="First name"
-                            value={contactForm.first_name}
-                            onChange={(value) =>
-                              handleContactFormChange("first_name", value)
-                            }
-                          />
-                          <InputGroup
-                            label="Last name"
-                            value={contactForm.last_name}
-                            onChange={(value) =>
-                              handleContactFormChange("last_name", value)
-                            }
-                          />
-                        </div>
+                    <div
+                      className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                        showAlternativeContacts
+                          ? "max-h-[2200px] opacity-100 translate-y-0"
+                          : "max-h-0 opacity-0 -translate-y-1 pointer-events-none"
+                      }`}
+                    >
+                      <div className="space-y-4 rounded-xl border border-slate-200 p-4 bg-slate-50">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-medium text-slate-900">
+                            Saved alternative contacts
+                          </p>
 
-                        <InputGroup
-                          label="Email"
-                          type="email"
-                          value={contactForm.email}
-                          onChange={(value) => handleContactFormChange("email", value)}
-                        />
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <InputGroup
-                            label="Mobile"
-                            value={contactForm.mobile_phone}
-                            onChange={(value) =>
-                              handleContactFormChange("mobile_phone", value)
-                            }
-                          />
-                          <InputGroup
-                            label="Landline"
-                            value={contactForm.landline_phone}
-                            onChange={(value) =>
-                              handleContactFormChange("landline_phone", value)
-                            }
-                          />
-                        </div>
-
-                        <InputGroup
-                          label="Role"
-                          value={contactForm.role}
-                          onChange={(value) => handleContactFormChange("role", value)}
-                        />
-
-                        <TextAreaGroup
-                          label="Notes"
-                          value={contactForm.notes}
-                          onChange={(value) => handleContactFormChange("notes", value)}
-                        />
-
-                        <div className="grid grid-cols-1 gap-2">
-                          <CheckboxRow
-                            label="Primary contact"
-                            checked={contactForm.is_primary}
-                            onChange={(checked) =>
-                              handleContactFormChange("is_primary", checked)
-                            }
-                          />
-                          <CheckboxRow
-                            label="Billing contact"
-                            checked={contactForm.is_billing_contact}
-                            onChange={(checked) =>
-                              handleContactFormChange("is_billing_contact", checked)
-                            }
-                          />
-                          <CheckboxRow
-                            label="Site contact"
-                            checked={contactForm.is_site_contact}
-                            onChange={(checked) =>
-                              handleContactFormChange("is_site_contact", checked)
-                            }
-                          />
-                        </div>
-
-                        <div className="pt-2 flex flex-wrap gap-3">
-                          <Button
-                            onClick={handleSaveContact}
-                            disabled={savingContact}
-                            className="gap-2 hover:cursor-pointer"
-                          >
-                            <Save className="h-4 w-4" />
-                            {savingContact ? "Saving..." : "Save Contact"}
-                          </Button>
-
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleCancelAddContact}
-                            disabled={savingContact}
-                            className="gap-2 hover:cursor-pointer"
-                          >
-                            <X className="h-4 w-4" />
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {visibleContacts.length === 0 ? (
-                      <EmptyState
-                        icon={<Users className="h-5 w-5" />}
-                        title="No alternative contacts"
-                        description="Add extra contacts for billing, site access, or backup communication."
-                      />
-                    ) : (
-                      <div className="space-y-3">
-                        {visibleContacts.map((contact) => {
-                          const fullName = formatFullName(
-                            contact.first_name,
-                            contact.last_name || undefined
-                          );
-
-                          return (
-                            <div
-                              key={contact.uuid || contact.id}
-                              className="rounded-xl border border-slate-200 bg-white p-4"
+                          {contactMode === null ? (
+                            <Button
+                              variant="outline"
+                              onClick={handleStartAddContact}
+                              className="gap-2 hover:cursor-pointer"
                             >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="font-semibold text-slate-900">
-                                    {fullName || "Unnamed contact"}
-                                  </p>
+                              <Plus className="h-4 w-4" />
+                              Add Contact
+                            </Button>
+                          ) : null}
+                        </div>
 
-                                  <div className="flex flex-wrap gap-2 mt-2">
-                                    {contact.is_primary ? (
-                                      <Badge label="Primary" />
-                                    ) : null}
-                                    {contact.is_billing_contact ? (
-                                      <Badge label="Billing" />
-                                    ) : null}
-                                    {contact.is_site_contact ? (
-                                      <Badge label="Site" />
-                                    ) : null}
-                                    {contact.role ? <Badge label={contact.role} /> : null}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="mt-3 space-y-2 text-sm text-slate-600">
-                                <InfoLine
-                                  icon={<Mail className="h-4 w-4" />}
-                                  text={contact.email || "—"}
-                                />
-                                <InfoLine
-                                  icon={<Phone className="h-4 w-4" />}
-                                  text={
-                                    contact.mobile_phone ||
-                                    contact.landline_phone ||
-                                    "—"
-                                  }
-                                />
-                                {contact.notes ? (
-                                  <InfoLine
-                                    icon={<Pencil className="h-4 w-4" />}
-                                    text={contact.notes}
-                                  />
-                                ) : null}
-                              </div>
+                        <div
+                          className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                            contactMode
+                              ? "max-h-[1200px] opacity-100 translate-y-0"
+                              : "max-h-0 opacity-0 -translate-y-1 pointer-events-none"
+                          }`}
+                        >
+                          <div className="space-y-4 rounded-xl border border-slate-200 p-4 bg-white">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium text-slate-900">
+                                {contactMode === "edit"
+                                  ? `Editing ${
+                                      formatFullName(
+                                        editingContact?.first_name,
+                                        editingContact?.last_name || undefined
+                                      ) || "contact"
+                                    }`
+                                  : "Add alternative contact"}
+                              </p>
                             </div>
-                          );
-                        })}
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <InputGroup
+                                label="First name"
+                                value={contactForm.first_name}
+                                onChange={(value) =>
+                                  handleContactFormChange("first_name", value)
+                                }
+                              />
+                              <InputGroup
+                                label="Last name"
+                                value={contactForm.last_name}
+                                onChange={(value) =>
+                                  handleContactFormChange("last_name", value)
+                                }
+                              />
+                            </div>
+
+                            <InputGroup
+                              label="Email"
+                              type="email"
+                              value={contactForm.email}
+                              onChange={(value) => handleContactFormChange("email", value)}
+                            />
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <InputGroup
+                                label="Mobile"
+                                value={contactForm.mobile_phone}
+                                onChange={(value) =>
+                                  handleContactFormChange("mobile_phone", value)
+                                }
+                              />
+                              <InputGroup
+                                label="Landline"
+                                value={contactForm.landline_phone}
+                                onChange={(value) =>
+                                  handleContactFormChange("landline_phone", value)
+                                }
+                              />
+                            </div>
+
+                            <InputGroup
+                              label="Role"
+                              value={contactForm.role}
+                              onChange={(value) => handleContactFormChange("role", value)}
+                            />
+
+                            <TextAreaGroup
+                              label="Notes"
+                              value={contactForm.notes}
+                              onChange={(value) => handleContactFormChange("notes", value)}
+                            />
+
+                            <div className="grid grid-cols-1 gap-2">
+                              <CheckboxRow
+                                label="Primary contact"
+                                checked={contactForm.is_primary}
+                                onChange={(checked) =>
+                                  handleContactFormChange("is_primary", checked)
+                                }
+                              />
+                              <CheckboxRow
+                                label="Billing contact"
+                                checked={contactForm.is_billing_contact}
+                                onChange={(checked) =>
+                                  handleContactFormChange("is_billing_contact", checked)
+                                }
+                              />
+                              <CheckboxRow
+                                label="Site contact"
+                                checked={contactForm.is_site_contact}
+                                onChange={(checked) =>
+                                  handleContactFormChange("is_site_contact", checked)
+                                }
+                              />
+                            </div>
+
+                            <div className="pt-2 flex flex-wrap gap-3">
+                              <Button
+                                onClick={handleSaveContact}
+                                disabled={savingContact}
+                                className="gap-2 hover:cursor-pointer"
+                              >
+                                <Save className="h-4 w-4" />
+                                {savingContact
+                                  ? "Saving..."
+                                  : contactMode === "edit"
+                                  ? "Save Changes"
+                                  : "Save Contact"}
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleCancelContactForm}
+                                disabled={savingContact}
+                                className="gap-2 hover:cursor-pointer"
+                              >
+                                <X className="h-4 w-4" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {visibleContacts.length === 0 ? (
+                          <EmptyState
+                            icon={<Users className="h-5 w-5" />}
+                            title="No alternative contacts"
+                            description="Add extra contacts for billing, site access, or backup communication."
+                          />
+                        ) : (
+                          <div className="space-y-3">
+                            {visibleContacts.map((contact) => {
+                              const fullName = formatFullName(
+                                contact.first_name,
+                                contact.last_name || undefined
+                              );
+
+                              const isThisContactEditing =
+                                contactMode === "edit" &&
+                                editingContactUuid === contact.uuid;
+
+                              return (
+                                <div
+                                  key={contact.uuid || contact.id}
+                                  className="rounded-xl border border-slate-200 bg-white p-4"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="font-semibold text-slate-900">
+                                        {fullName || "Unnamed contact"}
+                                      </p>
+
+                                      <div className="flex flex-wrap gap-2 mt-2">
+                                        {contact.is_primary ? (
+                                          <Badge label="Primary" />
+                                        ) : null}
+                                        {contact.is_billing_contact ? (
+                                          <Badge label="Billing" />
+                                        ) : null}
+                                        {contact.is_site_contact ? (
+                                          <Badge label="Site" />
+                                        ) : null}
+                                        {contact.role ? (
+                                          <Badge label={contact.role} />
+                                        ) : null}
+                                      </div>
+                                    </div>
+
+                                    {!isThisContactEditing ? (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="gap-2 hover:cursor-pointer"
+                                        onClick={() => handleStartEditContact(contact)}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                        Edit
+                                      </Button>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="mt-4 space-y-2 text-sm">
+                                    <DetailRow label="Email" value={contact.email || "—"} />
+                                    <DetailRow
+                                      label="Mobile"
+                                      value={contact.mobile_phone || "—"}
+                                    />
+                                    <DetailRow
+                                      label="Landline"
+                                      value={contact.landline_phone || "—"}
+                                    />
+                                    <DetailRow label="Notes" value={contact.notes || "—"} />
+                                  </div>
+
+                                  {isThisContactEditing ? (
+                                    <div className="mt-3 rounded-lg border border-green-100 bg-green-50 px-3 py-3 text-sm text-green-700">
+                                      Editing in the form above.
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -1246,33 +1566,64 @@ export default function CustomerDashboard() {
                       />
                     ) : (
                       <div className="space-y-3">
-                        {recentQuotes.map((quote) => (
-                          <div
-                            key={quote.uuid || quote.id}
-                            className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-                          >
-                            <div>
-                              <p className="font-semibold text-slate-900">
-                                {getQuoteDisplayId(quote)}
-                              </p>
-                              <p className="text-sm text-slate-500 mt-1">
-                                Created {formatDateTime(quote.created_at)}
-                              </p>
-                              <p className="text-sm text-slate-500 mt-1">
-                                Expires {formatDateTime(quote.expiry_end)}
-                              </p>
-                            </div>
+                        {recentQuotes.map((quote) => {
+                          const awaitingAction = isQuoteAwaitingClientAcceptance(quote);
+                          const expired = isQuoteExpired(quote);
 
-                            <div className="flex flex-col sm:items-end">
-                              <span className="text-sm font-medium text-slate-700 capitalize">
-                                Status: {quote.status || "—"}
-                              </span>
-                              <span className="text-base font-semibold text-green-700">
-                                {asMoney(quote.total_amount)}
-                              </span>
+                          return (
+                            <div
+                              key={quote.uuid || quote.id}
+                              className={`rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${
+                                awaitingAction
+                                  ? "border-amber-200 bg-amber-50"
+                                  : "border-slate-200 bg-white"
+                              }`}
+                            >
+                              <div>
+                                <p className="font-semibold text-slate-900">
+                                  {getQuoteDisplayId(quote)}
+                                </p>
+                                <p className="text-sm text-slate-500 mt-1">
+                                  Created {formatDateTime(quote.created_at)}
+                                </p>
+                                <p className="text-sm text-slate-500 mt-1">
+                                  Expires {formatDateTime(quote.expiry_end)}
+                                </p>
+
+                                {awaitingAction ? (
+                                  <p className="text-sm mt-2 font-medium text-amber-800">
+                                    {expired
+                                      ? "Expired before acceptance"
+                                      : "Waiting for your acceptance"}
+                                  </p>
+                                ) : null}
+                              </div>
+
+                              <div className="flex flex-col sm:items-end gap-2">
+                                <span className="text-sm font-medium text-slate-700 capitalize">
+                                  Status: {quote.status || "—"}
+                                </span>
+                                <span className="text-base font-semibold text-green-700">
+                                  {asMoney(quote.total_amount)}
+                                </span>
+
+                                <div className="flex flex-wrap gap-2 sm:justify-end">
+                                  {quote.quote_pdf_url ? (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      className="gap-2 hover:cursor-pointer"
+                                      onClick={() => window.open(quote.quote_pdf_url!, "_blank")}
+                                    >
+                                      <ExternalLink className="h-4 w-4" />
+                                      View PDF
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </CardContent>
@@ -1354,7 +1705,9 @@ export default function CustomerDashboard() {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-5">
                       <div>
-                        <h2 className="text-lg font-semibold text-slate-900">Recurring Services</h2>
+                        <h2 className="text-lg font-semibold text-slate-900">
+                          Recurring Services
+                        </h2>
                         <p className="text-sm text-slate-500">
                           Scheduled recurrence records attached to your jobs
                         </p>
@@ -1578,21 +1931,6 @@ function Badge({ label }: { label: string }) {
     <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
       {label}
     </span>
-  );
-}
-
-function InfoLine({
-  icon,
-  text,
-}: {
-  icon: React.ReactNode;
-  text: string;
-}) {
-  return (
-    <div className="flex items-start gap-2">
-      <span className="mt-0.5 text-slate-400">{icon}</span>
-      <span className="break-words">{text || "—"}</span>
-    </div>
   );
 }
 

@@ -4,32 +4,37 @@ const backendURL = process.env.BACKEND_URL;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { uuid } = req.query;
-  console.log("in schedule route")
+
+  console.log("hitting public job view proxy", {
+    method: req.method,
+    uuid,
+  });
+
   if (!uuid || typeof uuid !== "string") {
     return res.status(400).json({ error: "Invalid job UUID" });
   }
 
-  // Only allow PATCH
-  if (req.method !== "PATCH") {
-    res.setHeader("Allow", "PATCH");
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
     const cookieHeader = req.headers.cookie || "";
 
-    const backendRes = await fetch(`${backendURL}/api/jobs/${uuid}/schedule`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: cookieHeader,
-      },
-      body: JSON.stringify(req.body), // 👈 forwards job + recurrence object
-    });
-    console.log(req.body, " nextjs api proxy for update jobs with recurrences")
+    const backendRes = await fetch(
+      `${backendURL}/api/jobs/${uuid}/public-view`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: cookieHeader, // optional, remove if public
+        },
+      }
+    );
+
     const contentType = backendRes.headers.get("content-type") || "";
 
-    // Handle backend returning non-JSON safely
     if (!contentType.includes("application/json")) {
       const text = await backendRes.text();
       return res.status(backendRes.status).json({
@@ -40,9 +45,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const data = await backendRes.json();
 
+    console.log("public-view proxy response:", data);
+
     return res.status(backendRes.status).json(data);
   } catch (error: any) {
-    console.error("Job schedule proxy error:", error);
+    console.error("Public job view proxy error:", error);
 
     return res.status(500).json({
       error: error?.message || "Proxy server error",

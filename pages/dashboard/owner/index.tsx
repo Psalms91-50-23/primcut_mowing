@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,6 +76,21 @@ type UpcomingJobsResponse = {
   page?: number;
   totalPages?: number;
   hasNextPage?: boolean;
+};
+
+type DashboardStatsResponse = {
+  activeJobs?: number;
+  customers?: number;
+  quotesSent?: number;
+  upcomingJobs?: number;
+  error?: string;
+};
+
+type DashboardStats = {
+  activeJobs: number;
+  customers: number;
+  quotesSent: number;
+  upcomingJobs: number;
 };
 
 const DASHBOARD_JOB_LIMIT = 10;
@@ -285,6 +300,13 @@ export default function OwnerDashboard() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("employee");
 
+  const [stats, setStats] = useState<DashboardStats>({
+    activeJobs: 0,
+    customers: 0,
+    quotesSent: 0,
+    upcomingJobs: 0,
+  });
+
   const [quickFindType, setQuickFindType] = useState<QuickFindType>("quotes");
   const [quickFindValue, setQuickFindValue] = useState("");
   const [quickFindPreview, setQuickFindPreview] = useState<QuickFindPreview>(null);
@@ -323,6 +345,14 @@ export default function OwnerDashboard() {
 
   const dashboardRole = getDashboardRole(user?.role);
   const UUID_REGEX = /^[a-zA-Z0-9]{9}$/;
+
+  const handleReadTerms = () => {
+    router.push("/terms-and-conditions");
+  };
+
+  const handleCreateTerms = () => {
+    router.push("/admin/terms/new");
+  };
 
   const handleGlobalSearch = () => {
     const value = searchValue.trim();
@@ -407,6 +437,32 @@ export default function OwnerDashboard() {
 
   const handleQuickFindKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (e.key === "Enter") handleQuickFind();
+  };
+
+  const fetchDashboardStats = async () => {
+    try {
+      const res = await fetch("/api/dashboard/employee/stats");
+      const data: DashboardStatsResponse = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to fetch dashboard stats");
+      }
+
+      setStats({
+        activeJobs: Number(data.activeJobs || 0),
+        customers: Number(data.customers || 0),
+        quotesSent: Number(data.quotesSent || 0),
+        upcomingJobs: Number(data.upcomingJobs || 0),
+      });
+    } catch (err) {
+      console.error(err);
+      setStats({
+        activeJobs: 0,
+        customers: 0,
+        quotesSent: 0,
+        upcomingJobs: 0,
+      });
+    }
   };
 
   const fetchDraftQuotes = async ({
@@ -499,6 +555,7 @@ export default function OwnerDashboard() {
     append?: boolean;
     limit?: number;
   }) => {
+
     const setLoadingForRange = (value: boolean) => {
       if (range === "attention") setAttentionJobsLoading(value);
       if (range === "today") setTodayJobsLoading(value);
@@ -509,7 +566,8 @@ export default function OwnerDashboard() {
     setLoadingForRange(true);
 
     try {
-      const res = await fetch(`/api/jobs/dashboard?range=${range}&limit=${limit}&page=${page}`);
+      const res = await fetch(`/api/dashboard?range=${range}&limit=${limit}&page=${page}`);
+      // const res = await fetch(`/api/jobs/dashboard?range=${range}&limit=${limit}&page=${page}`);
       if (!res.ok) throw new Error(`Failed to fetch ${range} jobs`);
 
       const data: UpcomingJobsResponse = await res.json();
@@ -613,6 +671,7 @@ export default function OwnerDashboard() {
 
       try {
         await Promise.all([
+          fetchDashboardStats(),
           fetchExpiredQuotes({ lengthOfDays: 1, quoteLimit: 5 }),
           fetchDraftQuotes({ pageNumber: 1, quoteLimit: 5 }),
           fetchSentQuotes({ pageNumber: 1, quoteLimit: 5 }),
@@ -632,10 +691,6 @@ export default function OwnerDashboard() {
       cancelled = true;
     };
   }, [user]);
-
-  const upcomingHighlightsCount = useMemo(() => {
-    return (todayJobsTotal || 0) + (tomorrowJobsTotal || 0) + (next7JobsTotal || 0);
-  }, [todayJobsTotal, tomorrowJobsTotal, next7JobsTotal]);
 
   if (loading) {
     return (
@@ -670,11 +725,22 @@ export default function OwnerDashboard() {
               </Button>
 
               <Button
-                onClick={() => router.push("/dashboard/owner/settings")}
-                className="w-full sm:w-auto bg-green-700 text-white hover:bg-green-800"
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto cursor-pointer hover:bg-green-900 hover:text-white"
+                onClick={handleReadTerms}
               >
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
+                <FileText className="h-4 w-4 mr-2" />
+                Read Terms & Conditions
+              </Button>
+
+              <Button
+                type="button"
+                className="w-full sm:w-auto bg-emerald-600 text-white hover:bg-emerald-800 cursor-pointer"
+                onClick={handleCreateTerms}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Create New Terms & Conditions
               </Button>
             </div>
           </div>
@@ -683,13 +749,29 @@ export default function OwnerDashboard() {
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
-          <StatCard title="Active Jobs" value="12" icon={<Calendar />} />
-          <StatCard title="Customers" value="84" icon={<Users />} />
-          <StatCard title="Quotes Sent" value="27" icon={<FileText />} />
+          <StatCard
+            title="Active Jobs"
+            value={String(stats.activeJobs)}
+            icon={<Calendar />}
+            onClick={() => router.push("/dashboard/owner/jobs?filter=active")}
+          />
+          <StatCard
+            title="Customers"
+            value={String(stats.customers)}
+            icon={<Users />}
+            onClick={() => router.push("/dashboard/owner/customers")}
+          />
+          <StatCard
+            title="Quotes Sent"
+            value={String(stats.quotesSent)}
+            icon={<FileText />}
+            onClick={() => router.push("/dashboard/owner/quotes?status=sent")}
+          />
           <StatCard
             title="Upcoming Jobs"
-            value={String(upcomingHighlightsCount)}
+            value={String(stats.upcomingJobs)}
             icon={<Clock3 />}
+            onClick={() => router.push("/dashboard/owner/jobs?range=next7days")}
           />
         </section>
 
@@ -803,38 +885,41 @@ export default function OwnerDashboard() {
               </div>
             </CardContent>
           </Card>
+        </section>
 
+        <section className="mb-8">
           <Card className="rounded-2xl shadow-sm">
             <CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Send className="h-5 w-5 text-green-700" />
-                <h2 className="text-xl font-semibold">Invite User</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <FileText className="h-5 w-5 text-green-700" />
+                    <h2 className="text-xl font-semibold text-gray-900">Terms & Conditions</h2>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    Create a new version of your terms or open the current terms to review.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={handleReadTerms}
+                  >
+                    Read Terms & Conditions
+                  </Button>
+
+                  <Button
+                    type="button"
+                    className="bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
+                    onClick={handleCreateTerms}
+                  >
+                    Create New Terms & Conditions
+                  </Button>
+                </div>
               </div>
-
-              <input
-                type="email"
-                placeholder="User email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                className="border px-3 py-2 rounded w-full mb-2"
-              />
-
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value)}
-                className="border px-3 py-2 rounded w-full mb-3 hover:cursor-pointer"
-              >
-                <option value="employee">Employee</option>
-                <option value="admin">Admin</option>
-                <option value="owner">Owner</option>
-              </select>
-
-              <Button
-                onClick={handleInviteUser}
-                className="w-full cursor-pointer bg-green-600 text-white hover:bg-green-900 hover:text-white"
-              >
-                Send Invite
-              </Button>
             </CardContent>
           </Card>
         </section>
@@ -1157,13 +1242,18 @@ function StatCard({
   title,
   value,
   icon,
+  onClick,
 }: {
   title: string;
   value: string;
   icon: React.ReactNode;
+  onClick?: () => void;
 }) {
   return (
-    <Card className="rounded-2xl shadow-sm">
+    <Card
+      className={`rounded-2xl shadow-sm ${onClick ? "cursor-pointer hover:shadow-md transition" : ""}`}
+      onClick={onClick}
+    >
       <CardContent className="p-5 flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-500">{title}</p>

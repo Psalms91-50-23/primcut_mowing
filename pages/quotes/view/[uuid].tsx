@@ -35,6 +35,8 @@ type Quote = {
   status: string;
   limited?: boolean;
   is_quote_sent_to_client?: boolean;
+  has_urgent_fee?: boolean;
+  urgent_fee_amount?: number;
 };
 
 export default function QuoteView() {
@@ -396,6 +398,30 @@ export default function QuoteView() {
                       )}
                     </tr>
                   ))}
+                  {/* 🔥 URGENT FEE ROW (DISPLAY ONLY - already included in subtotal) */}
+                  {quote.has_urgent_fee && (quote.urgent_fee_amount ?? 0) > 0 && (
+                    <tr className="bg-amber-50">
+                      <td className="px-4 py-2 font-medium text-amber-900">
+                        Urgent / Priority Service Fee
+                      </td>
+
+                      {!quote.limited && !isResponded && (
+                        <>
+                          <td className="px-4 py-2 text-center text-amber-800">
+                            ${quote.urgent_fee_amount!.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-2 text-center text-amber-800">1</td>
+                          <td className="px-4 py-2 text-right font-semibold text-amber-900">
+                            ${quote.urgent_fee_amount!.toFixed(2)}
+                          </td>
+                        </>
+                      )}
+
+                      {(quote.limited || isResponded) && (
+                        <td className="px-4 py-2 text-center text-amber-800">1</td>
+                      )}
+                    </tr>
+                  )}
                 </tbody>
               </table>
 

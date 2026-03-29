@@ -6,6 +6,7 @@ import {
   ReactNode,
   useCallback,
 } from "react";
+
 import { useAuth } from "./AuthContext";
 
 export interface CustomerType {
@@ -35,7 +36,7 @@ type CustomerContextType = {
 const CustomerContext = createContext<CustomerContextType | null>(null);
 
 export const CustomerProvider = ({ children }: { children: ReactNode }) => {
-  const { user, loading: authLoading, role } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const [customer, setCustomer] = useState<CustomerType | null>(null);
   const [customerLoading, setCustomerLoading] = useState<boolean>(true);
@@ -63,7 +64,7 @@ export const CustomerProvider = ({ children }: { children: ReactNode }) => {
           "Content-Type": "application/json",
         },
       });
-
+      console.log({res})
       if (!res.ok) {
         setCustomer(null);
         return null;
@@ -96,14 +97,14 @@ export const CustomerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    if (role !== "customer") {
+      if (user?.role !== "customer") {
       setCustomer(null);
       setCustomerLoading(false);
       return;
     }
 
     fetchCustomer();
-  }, [authLoading, user, role, fetchCustomer]);
+  }, [authLoading, user, fetchCustomer]);
 
   return (
     <CustomerContext.Provider
