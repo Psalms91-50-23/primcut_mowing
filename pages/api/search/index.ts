@@ -13,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    const backendUrl = process.env.BACKEND_URL;
 
     if (!backendUrl) {
       return res.status(500).json({ error: "NEXT_PUBLIC_BACKEND_URL is not set" });
