@@ -21,8 +21,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const response = await fetch(url);
     const data = await response.json();
 
-    console.log("Autocomplete API response:", data);
-
     return res.status(200).json(data);
   } catch (err) {
     console.error("API Route Error:", err);

@@ -1,8 +1,8 @@
 import React from "react";
 
 interface SpinnerOverlayProps {
-  text?: string; // loading text
-  className?: string; // additional classes
+  text?: string;
+  className?: string;
 }
 
 const Spinner: React.FC<SpinnerOverlayProps> = ({

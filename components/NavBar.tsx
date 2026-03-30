@@ -71,8 +71,6 @@ const NavBar = () => {
     >
       <h1 className="flex font-bold text-xl m-0 p-0 items-center"><span className="text-3xl m-0 p-0 translate-x-2">H</span>
           <img src="/images/happy-house-1.png" alt="Happy property house" className="block w-14 h-12 pl-2" />
-        {/* <span className="font-bold text-3xl m-0 p-0 ">
-        </span> */}
         <span className="font-bold text-3xl m-0 p-0">ppy Property</span></h1>
 
       {/* Desktop Menu */}
@@ -134,14 +132,12 @@ const NavBar = () => {
           )}
         </ul>
       )}
-
       {/* Mobile Menu Button */}
       {isMobile && (
         <button type="button" onClick={() => setMenuOpen(true)} className="text-white text-3xl hover:cursor-pointer">
           ☰
         </button>
       )}
-
       {/* Mobile Slide Menu */}
       <div
         ref={mobileMenuRef}

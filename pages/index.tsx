@@ -276,7 +276,7 @@ const Home: React.FC<Props> = () => {
               <div className="text-3xl mb-4">🏡</div>
               <h3 className="text-xl font-bold mb-3">Broad Property Coverage</h3>
               <p className="text-gray-700">
-                From deck repairs, fences, gates, gutters, lawns, gardens, and
+                From deck repairs, fences, gates, lawns, and
                 cleaning through to handyman and interior repair jobs, the service
                 offering is broad and practical.
               </p>

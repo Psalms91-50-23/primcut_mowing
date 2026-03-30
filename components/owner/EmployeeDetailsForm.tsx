@@ -58,7 +58,7 @@ const EmployeeDetailsForm: React.FC<EmployeeDetailsFormProps> = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/employees/${user?.uuid}`, {
+      const res = await fetch(`/api/employees/${user?.uuid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

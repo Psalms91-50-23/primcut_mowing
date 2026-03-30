@@ -64,7 +64,6 @@ export const CustomerProvider = ({ children }: { children: ReactNode }) => {
           "Content-Type": "application/json",
         },
       });
-      console.log({res})
       if (!res.ok) {
         setCustomer(null);
         return null;
@@ -72,7 +71,6 @@ export const CustomerProvider = ({ children }: { children: ReactNode }) => {
 
       const json = await res.json();
       const customerData = json?.customer ?? null;
-      console.log({customerData}, " customer context")
       setCustomer(customerData);
       return customerData;
     } catch (err) {

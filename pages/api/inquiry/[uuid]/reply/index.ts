@@ -39,6 +39,7 @@ export default async function handler(
     }
 
     const data = await response.json();
+    
     return res.status(response.status).json(data);
   } catch (error: any) {
     console.error("Proxy /api/inquiry/[uuid]/reply error:", error);

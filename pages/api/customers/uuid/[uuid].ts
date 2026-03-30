@@ -4,15 +4,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-  console.log("next js api proxy")
   // const { uuid } = req.query;
   const uuid = typeof req.query.uuid === "string" ? req.query.uuid.trim() : "";
 
   if (!uuid) {
     return res.status(400).json({ error: "Customer UUID is required" });
   }
-
-  console.log({uuid}, "next proxy")
 
   try {
     const backendUrl = process.env.BACKEND_URL;
@@ -51,6 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json(data);
   } catch (error: any) {
+    console.error("API /customers/uuid/[uuid] error:", error);
     return res.status(500).json({
       error: error?.message || "Unexpected proxy error",
     });

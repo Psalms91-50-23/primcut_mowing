@@ -15,7 +15,7 @@ const InviteUserForm: React.FC<InviteUserFormProps> = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/invite`, {
+      const res = await fetch(`/api/users/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, role }),

@@ -5,9 +5,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { uuid } = req.query;
   
   if (req.method === "PATCH") {
+    const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000"; 
     try {
       const backendRes = await fetch(
-        `${process.env.BACKEND_URL}/api/quotes/uuid/${uuid}`,
+        `${BACKEND_URL}/api/quotes/uuid/${uuid}`,
         {
           method: "PATCH",
           headers: { 

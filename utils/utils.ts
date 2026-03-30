@@ -4,9 +4,37 @@ import { RegisterPayload, LoginPayload, Service, Image, Quote } from "@/types";
 export const GST_RATE = 0.15;
 export const round2 = (num: number) => Number(num.toFixed(2));
 
+// export async function registerUser(payload: RegisterPayload) {
+//   try {
+//     const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/register`, {
+//       method: "POST",
+//       headers: {
+//         "Content-Type": "application/json",
+//       },
+//       body: JSON.stringify(payload),
+//     });
+
+//     const data = await res.json();
+
+//     if (!res.ok) {
+//       throw new Error(data.error || "Failed to register user");
+//     }
+
+//     return data;
+//   } catch (err: any) {
+//     if (err instanceof Error) {
+//       console.error("Register user failed:", err.message);
+//       throw err;
+//     }
+
+//     console.error("Register user failed:", err);
+//     throw new Error("Unknown error");
+//   }
+// }
+
 export async function registerUser(payload: RegisterPayload) {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/register`, {
+    const res = await fetch("/api/users/register", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -21,7 +49,7 @@ export async function registerUser(payload: RegisterPayload) {
     }
 
     return data;
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Error) {
       console.error("Register user failed:", err.message);
       throw err;
@@ -121,8 +149,16 @@ export const calculateGST = (subtotal: number) =>
 export const calculateTotal = (subtotal: number, gst: number) =>
   Number((subtotal + gst).toFixed(2));
 
-export const sendPasswordResetEmail = async ({ email, recaptchaToken, recaptchaVersion } : { email: string, recaptchaToken: string , recaptchaVersion: string }) => {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/password-reset/request`, {
+export const sendPasswordResetEmail = async ({
+  email,
+  recaptchaToken,
+  recaptchaVersion,
+}: {
+  email: string;
+  recaptchaToken: string;
+  recaptchaVersion: string;
+}) => {
+  const res = await fetch("/api/password-reset/request", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -133,10 +169,24 @@ export const sendPasswordResetEmail = async ({ email, recaptchaToken, recaptchaV
   const data = await res.json();
 
   if (!res.ok) throw new Error(data.error || "Reset failed");
-  console.log({data}, "reset password route frontend")
 
   return data;
 };
+// export const sendPasswordResetEmail = async ({ email, recaptchaToken, recaptchaVersion } : { email: string, recaptchaToken: string , recaptchaVersion: string }) => {
+//   const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/password-reset/request`, {
+//     method: "POST",
+//     headers: {
+//       "Content-Type": "application/json",
+//     },
+//     body: JSON.stringify({ email, recaptchaToken, recaptchaVersion }),
+//   });
+
+//   const data = await res.json();
+
+//   if (!res.ok) throw new Error(data.error || "Reset failed");
+
+//   return data;
+// };
 
 export function sanitizeDecimalInput(value: string): string {
   // Remove all characters before the first digit

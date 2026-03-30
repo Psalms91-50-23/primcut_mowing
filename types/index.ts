@@ -5,7 +5,6 @@ export interface ContactFormData {
 }
 
 // utils/utils.js
-
 export type Service = {
   value: string;
   label: string;

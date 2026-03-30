@@ -75,7 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const data = await backendRes.json();
     return res.status(backendRes.status).json(data);
   } catch (error: any) {
-    console.error("Dashboard jobs proxy error:", error);
+    console.error("/api/dashboard/jobs proxy error:", error);
     return res.status(500).json({
       error: error?.message || "Internal server error",
     });

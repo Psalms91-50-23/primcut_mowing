@@ -141,13 +141,12 @@ export default function AuthPage() {
         toast.error("Could not fetch user data.");
         return;
       }
-
-      toast.success("Logged in successfully!");
       // const redirectUrl =
       //   typeof router.query.redirect === "string" && router.query.redirect.length > 0
       //     ? router.query.redirect
       //     : roleRedirectMap[loggedInUser.role] || "/";
       const redirectTo = getRedirectUrl(loggedInUser);
+      toast.success("Logged in successfully!");
       router.replace(redirectTo);
       // router.replace(redirectUrl);
     } catch (err: any) {

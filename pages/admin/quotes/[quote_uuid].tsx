@@ -72,7 +72,6 @@ export default function QuoteAdminPage() {
         credentials: "include",
       });
       const data = await res.json();
-      console.log({data}, " quote admin get")
       const quoteData = data?.quote ?? data;
 
       const services: Service[] = (quoteData.services || []).map((s: any) => ({

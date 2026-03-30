@@ -24,18 +24,19 @@ export default function ResetPasswordPage() {
     const checkToken = async () => {
       try {
         setLoadingToken(true);
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/password-reset/check`, {
+
+        const res = await fetch(`/api/password-reset/check`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
         });
+
         const data = await res.json();
 
         if (!res.ok || data.error === "Token expired") {
           setTokenValid(false);
           setTokenExpired(true);
         } else {
-          console.log({ data }, "checking token for reset");
           setTokenValid(true);
         }
       } catch (err) {
@@ -46,6 +47,30 @@ export default function ResetPasswordPage() {
         setLoadingToken(false);
       }
     };
+    // const checkToken = async () => {
+    //   try {
+    //     setLoadingToken(true);
+    //     const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/password-reset/check`, {
+    //       method: "POST",
+    //       headers: { "Content-Type": "application/json" },
+    //       body: JSON.stringify({ token }),
+    //     });
+    //     const data = await res.json();
+
+    //     if (!res.ok || data.error === "Token expired") {
+    //       setTokenValid(false);
+    //       setTokenExpired(true);
+    //     } else {
+    //       setTokenValid(true);
+    //     }
+    //   } catch (err) {
+    //     console.error(err);
+    //     setTokenValid(false);
+    //     setTokenExpired(true);
+    //   } finally {
+    //     setLoadingToken(false);
+    //   }
+    // };
 
     checkToken();
   }, [token]);
@@ -53,30 +78,70 @@ export default function ResetPasswordPage() {
   const handleReset = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!password || !confirmPassword) return toast.error("Please fill out both fields");
-    if (password !== confirmPassword) return toast.error("Passwords do not match");
-    if (!token || typeof token !== "string") return toast.error("Invalid reset link");
+    if (!password || !confirmPassword) {
+      return toast.error("Please fill out both fields");
+    }
+
+    if (password !== confirmPassword) {
+      return toast.error("Passwords do not match");
+    }
+
+    if (!token || typeof token !== "string") {
+      return toast.error("Invalid reset link");
+    }
 
     try {
       setLoading(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/password-reset/reset`, {
+
+      const res = await fetch("/api/password-reset/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, newPassword: password }),
       });
+
       const data = await res.json();
 
-      if (!res.ok) return toast.error(data.error || "Failed to reset password");
+      if (!res.ok) {
+        return toast.error(data.error || "Failed to reset password");
+      }
 
       toast.success("Password reset successfully!");
       router.push("/auth");
-    } catch (err) {
-      console.error(err);
+    } catch (err: unknown) {
+      console.error("Reset password failed:", err);
       toast.error("Something went wrong");
     } finally {
       setLoading(false);
     }
   };
+
+  // const handleReset = async (e: React.FormEvent<HTMLFormElement>) => {
+  //   e.preventDefault();
+
+  //   if (!password || !confirmPassword) return toast.error("Please fill out both fields");
+  //   if (password !== confirmPassword) return toast.error("Passwords do not match");
+  //   if (!token || typeof token !== "string") return toast.error("Invalid reset link");
+
+  //   try {
+  //     setLoading(true);
+  //     const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/password-reset/reset`, {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({ token, newPassword: password }),
+  //     });
+  //     const data = await res.json();
+
+  //     if (!res.ok) return toast.error(data.error || "Failed to reset password");
+
+  //     toast.success("Password reset successfully!");
+  //     router.push("/auth");
+  //   } catch (err) {
+  //     console.error(err);
+  //     toast.error("Something went wrong");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const handleResend = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

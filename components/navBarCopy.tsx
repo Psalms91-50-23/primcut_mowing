@@ -22,9 +22,7 @@ const NavBar = () => {
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = async () => {
-    console.log("Logging out...");
     await logout();
-    console.log("User after logout:", user);
     setDropdownOpen(false);
     router.push("/auth");
   };

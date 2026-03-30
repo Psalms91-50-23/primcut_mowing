@@ -171,7 +171,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setRole(null);
         }
       } catch (err) {
-        console.log("Not logged in", err);
         setUser(null);
         setRole(null);
       } finally {
