@@ -172,6 +172,7 @@ export const sendPasswordResetEmail = async ({
 
   return data;
 };
+
 // export const sendPasswordResetEmail = async ({ email, recaptchaToken, recaptchaVersion } : { email: string, recaptchaToken: string , recaptchaVersion: string }) => {
 //   const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/password-reset/request`, {
 //     method: "POST",
@@ -229,3 +230,70 @@ export function getDashboardRole(role?: string) {
   if (role === "customer") return "customer";
   return "employee";
 }
+
+export const pad = (n: number) => String(n).padStart(2, "0");
+
+export const toDatetimeLocalValue = (isoOrNull?: string | null) => {
+  if (!isoOrNull) return "";
+  const d = new Date(isoOrNull);
+  if (Number.isNaN(d.getTime())) return "";
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const min = pad(d.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+}
+
+export const toDateLocalValue = (value?: string | null) => {
+  if (!value) return "";
+
+  const stringValue = String(value).trim();
+
+  // Handles plain YYYY-MM-DD safely
+  if (/^\d{4}-\d{2}-\d{2}$/.test(stringValue)) {
+    return stringValue;
+  }
+
+  // Handles ISO/timestamp fallback
+  const d = new Date(stringValue);
+  if (Number.isNaN(d.getTime())) return "";
+
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export const localDatetimeToISO = (localValue: string) => {
+  if (!localValue) return "";
+  return new Date(localValue).toISOString();
+};
+
+export const localDateToDB = (localDate: string) => {
+  return localDate || null;
+}
+
+export const formatDateOnly = (localDate?: string | null) => {
+  if (!localDate) return "—";
+
+  const [year, month, day] = localDate.split("-").map(Number);
+  if (!year || !month || !day) return "—";
+
+  const d = new Date(year, month - 1, day);
+  if (Number.isNaN(d.getTime())) return "—";
+
+  return d.toLocaleDateString("en-NZ");
+}
+
+export const getWindowLabel = (windowPreset?: string | null, windowMins?: number | null) => {
+  if (windowPreset === "anytime") return "9:00 am–5:00 pm";
+  if (windowPreset === "morning") return "9:00 am–12:00 pm";
+  if (windowPreset === "midday") return "12:00 pm–3:00 pm";
+  if (windowPreset === "afternoon") return "3:00 pm–5:00 pm";
+  if (windowMins && windowMins > 0) return `${windowMins} mins window`;
+  return "—";
+}
+
+export const formatMoney = (value: number | string | null | undefined) =>
+  Number(value || 0).toLocaleString("en-NZ", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });

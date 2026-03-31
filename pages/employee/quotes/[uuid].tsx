@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
-import { formatFullName, round2 } from "@/utils/utils";
+import { formatFullName, round2, formatMoney } from "@/utils/utils";
 import { useUI } from "../../../context/UIContext";
 
 type Service = {
@@ -16,6 +16,12 @@ type Image = {
   label?: string;
   url: string;
 };
+
+type RecurrenceFrequency =
+  | "one_off"
+  | "weekly"
+  | "fortnightly"
+  | "monthly";
 
 type Quote = {
   uuid: string;
@@ -38,6 +44,7 @@ type Quote = {
   sent_by_user_uuid?: string;
   employer_message?: string;
   message?: string;
+  recurrence_frequency?: RecurrenceFrequency;
 
   terms_version?: string | number;
   terms_pdf_url?: string;
@@ -50,12 +57,55 @@ type Quote = {
 
 const GST_RATE = 0.15;
 
+const RECURRENCE_OPTIONS: Array<{
+  value: RecurrenceFrequency;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "one_off",
+    label: "One-off",
+    description: "A single visit only",
+  },
+  {
+    value: "weekly",
+    label: "Weekly",
+    description: "Ongoing weekly service",
+  },
+  {
+    value: "fortnightly",
+    label: "Fortnightly",
+    description: "Every 2 weeks",
+  },
+  {
+    value: "monthly",
+    label: "Monthly",
+    description: "Once a month",
+  },
+];
+
 const formatDateOnly = (value?: string | null) => {
   if (!value) return "";
   const datePart = String(value).slice(0, 10);
   const [year, month, day] = datePart.split("-");
   if (!year || !month || !day) return datePart;
   return `${day}/${month}/${year}`;
+};
+
+const formatRecurrenceLabel = (
+  recurrence?: RecurrenceFrequency | string | null
+) => {
+  switch (recurrence) {
+    case "weekly":
+      return "Weekly";
+    case "fortnightly":
+      return "Fortnightly";
+    case "monthly":
+      return "Monthly";
+    case "one_off":
+    default:
+      return "One-off";
+  }
 };
 
 export default function EmployeeQuotePage() {
@@ -139,15 +189,28 @@ export default function EmployeeQuotePage() {
         console.log({ quoteData });
 
         const services = (quoteData.services || []).map((s: any) => ({
-          value: s.value,
-          label: s.label || s.value || "",
+          value: s.value || s.code || "",
+          label: s.label || s.value || s.code || "",
           unit_price: Number(s.unit_price ?? 0),
           quantity: Number(s.quantity ?? 1),
         }));
 
+        const allowedRecurrenceFrequencies: RecurrenceFrequency[] = [
+          "one_off",
+          "weekly",
+          "fortnightly",
+          "monthly",
+        ];
+
+        const normalizedRecurrenceFrequency: RecurrenceFrequency =
+          allowedRecurrenceFrequencies.includes(quoteData.recurrence_frequency)
+            ? quoteData.recurrence_frequency
+            : "one_off";
+
         const baseQuote: Quote = {
           ...quoteData,
           services,
+          recurrence_frequency: normalizedRecurrenceFrequency,
           has_urgent_fee: Boolean(quoteData.has_urgent_fee),
           urgent_fee_amount: Number(quoteData.urgent_fee_amount ?? 0),
           subtotal_amount: 0,
@@ -250,6 +313,7 @@ export default function EmployeeQuotePage() {
 
       const updatedQuote = {
         ...quote,
+        recurrence_frequency: quote.recurrence_frequency || "one_off",
         expiry_end: newExpiry || quote.expiry_end || null,
         urgent_fee_amount: urgentFee,
         subtotal_amount: subtotal,
@@ -276,15 +340,28 @@ export default function EmployeeQuotePage() {
       const returnedQuote = data.quote || data;
 
       const normalizedServices = (returnedQuote.services || []).map((s: any) => ({
-        value: s.value,
-        label: s.label || s.value || "",
+        value: s.value || s.code || "",
+        label: s.label || s.value || s.code || "",
         unit_price: Number(s.unit_price ?? 0),
         quantity: Number(s.quantity ?? 1),
       }));
 
+      const allowedRecurrenceFrequencies: RecurrenceFrequency[] = [
+        "one_off",
+        "weekly",
+        "fortnightly",
+        "monthly",
+      ];
+
+      const normalizedRecurrenceFrequency: RecurrenceFrequency =
+        allowedRecurrenceFrequencies.includes(returnedQuote.recurrence_frequency)
+          ? returnedQuote.recurrence_frequency
+          : "one_off";
+
       const normalizedQuote: Quote = recalculateQuoteTotals(normalizedServices, {
         ...returnedQuote,
         services: normalizedServices,
+        recurrence_frequency: normalizedRecurrenceFrequency,
         urgent_fee_amount: Number(returnedQuote.urgent_fee_amount ?? 0),
       });
 
@@ -478,6 +555,11 @@ export default function EmployeeQuotePage() {
                     <span className="px-2">{quote.contact_email}</span>
                   </div>
 
+                  <div className="py-1">
+                    <span className="font-bold">Requested Frequency: </span>
+                    <span>{formatRecurrenceLabel(quote.recurrence_frequency)}</span>
+                  </div>
+
                   {quote.message && quote.message.trim() && (
                     <div className="mt-4 flex flex-col">
                       <label className="font-bold py-2">Client Message</label>
@@ -489,6 +571,60 @@ export default function EmployeeQuotePage() {
                       </p>
                     </div>
                   )}
+
+                  <div className="mt-4">
+                    <label className="block font-bold mb-2 py-2">
+                      Service Frequency
+                    </label>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {RECURRENCE_OPTIONS.map((option) => {
+                        const isSelected =
+                          (quote.recurrence_frequency || "one_off") ===
+                          option.value;
+
+                        return (
+                          <label
+                            key={option.value}
+                            className={`rounded border px-4 py-3 bg-white transition hover:cursor-pointer ${
+                              isSelected
+                                ? "border-green-700 ring-1 ring-green-700"
+                                : "border-gray-300 hover:border-gray-400"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <input
+                                type="radio"
+                                name="recurrence_frequency"
+                                value={option.value}
+                                checked={isSelected}
+                                onChange={() =>
+                                  setQuote({
+                                    ...quote,
+                                    recurrence_frequency: option.value,
+                                  })
+                                }
+                                className="mt-1 hover:cursor-pointer"
+                              />
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm sm:text-base">
+                                  {option.label}
+                                </span>
+                                <span className="text-xs sm:text-sm text-gray-600">
+                                  {option.description}
+                                </span>
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    <p className="text-xs text-gray-500 mt-2">
+                      Confirm whether this quote is for a one-off or recurring
+                      service before sending it to the client.
+                    </p>
+                  </div>
 
                   <div className="flex flex-col sm:flex-row sm:gap-4 w-full mt-4">
                     <label className="flex flex-col flex-1 min-w-0">
@@ -630,7 +766,7 @@ export default function EmployeeQuotePage() {
                         />
                       </td>
                       <td className="border px-4 py-2 text-right">
-                        ${round2(s.unit_price * s.quantity).toFixed(2)}
+                        ${formatMoney(round2(s.unit_price * s.quantity))}
                       </td>
                     </tr>
                   ))}
@@ -666,23 +802,23 @@ export default function EmployeeQuotePage() {
 
             <div className="flex flex-col space-y-2 items-end">
               <div className="py-1 font-semibold">
-                <span>Services Subtotal: ${servicesSubtotal.toFixed(2)}</span>
+                <span>Services Subtotal: ${formatMoney(servicesSubtotal)}</span>
               </div>
 
               {quote.has_urgent_fee && (
                 <div className="py-1 font-semibold text-red-700">
-                  <span>Urgent Fee: ${urgentFee.toFixed(2)}</span>
+                  <span>Urgent Fee: ${formatMoney(urgentFee)}</span>
                 </div>
               )}
 
               <div className="py-1 font-semibold">
-                <span>Subtotal: ${quote.subtotal_amount.toFixed(2)}</span>
+                <span>Subtotal: ${formatMoney(quote.subtotal_amount)}</span>
               </div>
               <div className="py-1 font-semibold">
-                <span>GST (15%): ${quote.gst_amount.toFixed(2)}</span>
+                <span>GST (15%): ${formatMoney(quote.gst_amount)}</span>
               </div>
               <div className="py-1 font-bold text-green-900 text-lg">
-                <span>Total: ${quote.total_amount.toFixed(2)}</span>
+                <span>Total: ${formatMoney(quote.total_amount)}</span>
               </div>
             </div>
 

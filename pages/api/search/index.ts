@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const backendUrl = process.env.BACKEND_URL;
 
     if (!backendUrl) {
-      return res.status(500).json({ error: "NEXT_PUBLIC_BACKEND_URL is not set" });
+      return res.status(500).json({ error: "BACKEND_URL is not set" });
     }
 
     const target = `${backendUrl}/api/search?q=${encodeURIComponent(q)}&type=${encodeURIComponent(type)}`;

@@ -37,7 +37,14 @@ type Quote = {
   is_quote_sent_to_client?: boolean;
   has_urgent_fee?: boolean;
   urgent_fee_amount?: number;
+  recurrence_frequency?: RecurrenceFrequency;
 };
+
+type RecurrenceFrequency =
+  | "one_off"
+  | "weekly"
+  | "fortnightly"
+  | "monthly";
 
 export default function QuoteView() {
   const { openImage } = useUI();
@@ -337,7 +344,25 @@ export default function QuoteView() {
                 {quote.contact_landline && <p><strong>Landline:</strong> {quote.contact_landline}</p>}
               </>
             )}
+            {quote.status === "sent" && (
+              <>
+                {quote.contact_email && <p><strong>Email:</strong> {quote.contact_email}</p>}
+                {quote.contact_mobile && <p><strong>Mobile:</strong> {quote.contact_mobile}</p>}
+                {quote.contact_landline && <p><strong>Landline:</strong> {quote.contact_landline}</p>}
 
+                {/* ✅ ADD THIS */}
+                <p>
+                  <strong>Service Frequency:</strong>{" "}
+                  {quote.recurrence_frequency === "weekly"
+                    ? "Weekly"
+                    : quote.recurrence_frequency === "fortnightly"
+                    ? "Fortnightly"
+                    : quote.recurrence_frequency === "monthly"
+                    ? "Monthly"
+                    : "One-off"}
+                </p>
+              </>
+            )}
             {quote.message && (
               <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
                 <p className="font-semibold text-gray-800 mb-2">Message from Customer</p>

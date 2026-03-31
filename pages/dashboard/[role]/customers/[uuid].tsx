@@ -140,7 +140,7 @@ export default function CustomerPage() {
       try {
         const res = await fetch(`/api/customers/uuid/${uuid}`);
         const contentType = res.headers.get("content-type") || "";
-
+  
         let data: any;
         if (contentType.includes("application/json")) {
           data = await res.json();
@@ -153,7 +153,7 @@ export default function CustomerPage() {
         if (!res.ok) {
           throw new Error(data.error || "Failed to fetch customer");
         }
-
+        console.log({data})
         setCustomer(data.customer || data);
       } catch (err: any) {
         console.error("Error fetching customer:", err?.message || err);
@@ -180,6 +180,7 @@ export default function CustomerPage() {
 
         if (jobsRes?.ok) {
           const jobsData = await jobsRes.json();
+          console.log({jobsData})
           setJobs(jobsData.jobs || jobsData || []);
         }
 
@@ -409,7 +410,7 @@ export default function CustomerPage() {
                       }
                     >
                       <option value="individual">Individual</option>
-                      <option value="company">Company</option>
+                      <option value="business">Business</option>
                     </select>
                   </div>
                 </label>
@@ -469,7 +470,7 @@ export default function CustomerPage() {
                       key={job.uuid}
                       type="button"
                       onClick={() =>
-                        router.push(`/dashboard/${roleFromUrl || "owner"}/jobs/${job.uuid}`)
+                        router.push(`/employee/jobs/uuid/${job.uuid}`)
                       }
                       className="w-full rounded-2xl border border-slate-200 p-4 text-left transition hover:border-green-300 hover:bg-green-50"
                     >

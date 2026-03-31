@@ -36,6 +36,7 @@ type SearchQuote = {
   contact_landline?: string | null;
   address?: string | null;
   total_amount?: number | null;
+  customer_uuid?: string | null;
 };
 
 type SearchJob = {
@@ -44,6 +45,8 @@ type SearchJob = {
   job_address?: string | null;
   scheduled_at?: string | null;
   total_amount?: number | null;
+  quote_uuid?: string | null;
+  customer_uuid?: string | null;
   quote?: {
     uuid?: string;
     contact_first_name?: string | null;
@@ -250,6 +253,74 @@ export default function DeepSearchPage() {
           <Card className="rounded-2xl shadow-sm">
             <CardContent className="p-6 space-y-4">
               <div>
+                <h2 className="text-xl font-semibold text-gray-900">Global Search</h2>
+                <p className="text-sm text-gray-500">
+                  Search by name, email, phone, address, or UUID
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2">
+                <input
+                  type="text"
+                  placeholder="john smith, john@email.com, 021..., address..."
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  className="border px-3 py-2 rounded w-full"
+                />
+
+                <Button
+                  onClick={() => handleSearch()}
+                  className="cursor-pointer bg-green-600 text-white hover:bg-green-900"
+                  disabled={searchLoading}
+                >
+                  {searchLoading ? "Searching..." : "Search"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setSearchValue("");
+                    setSearchError(null);
+                    setSearchResults({
+                      query: "",
+                      customers: [],
+                      quotes: [],
+                      jobs: [],
+                    });
+
+                    const nextQuery = { ...router.query };
+                    delete nextQuery.q;
+
+                    router.replace(
+                      {
+                        pathname: router.pathname,
+                        query: nextQuery,
+                      },
+                      undefined,
+                      { shallow: true }
+                    );
+                  }}
+                  className="cursor-pointer"
+                >
+                  Clear
+                </Button>
+              </div>
+
+              {searchError && <p className="text-red-600 text-sm">{searchError}</p>}
+
+              {!searchError && searchResults.query && (
+                <p className="text-sm text-gray-500">
+                  Results for: <span className="font-medium">{searchResults.query}</span>
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-6 space-y-4">
+              <div>
                 <h2 className="text-xl font-semibold text-gray-900">UUID Search</h2>
                 <p className="text-sm text-gray-500">
                   Open a quote, job, or customer directly by 9-character UUID
@@ -323,73 +394,7 @@ export default function DeepSearchPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm">
-            <CardContent className="p-6 space-y-4">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Global Search</h2>
-                <p className="text-sm text-gray-500">
-                  Search by name, email, phone, address, or UUID
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2">
-                <input
-                  type="text"
-                  placeholder="john smith, john@email.com, 021..., address..."
-                  value={searchValue}
-                  onChange={(e) => setSearchValue(e.target.value)}
-                  onKeyDown={handleSearchKeyDown}
-                  className="border px-3 py-2 rounded w-full"
-                />
-
-                <Button
-                  onClick={() => handleSearch()}
-                  className="cursor-pointer bg-green-600 text-white hover:bg-green-900"
-                  disabled={searchLoading}
-                >
-                  {searchLoading ? "Searching..." : "Search"}
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setSearchValue("");
-                    setSearchError(null);
-                    setSearchResults({
-                      query: "",
-                      customers: [],
-                      quotes: [],
-                      jobs: [],
-                    });
-
-                    const nextQuery = { ...router.query };
-                    delete nextQuery.q;
-
-                    router.replace(
-                      {
-                        pathname: router.pathname,
-                        query: nextQuery,
-                      },
-                      undefined,
-                      { shallow: true }
-                    );
-                  }}
-                  className="cursor-pointer"
-                >
-                  Clear
-                </Button>
-              </div>
-
-              {searchError && <p className="text-red-600 text-sm">{searchError}</p>}
-
-              {!searchError && searchResults.query && (
-                <p className="text-sm text-gray-500">
-                  Results for: <span className="font-medium">{searchResults.query}</span>
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          
         </div>
 
         {type === "job" && (loading || sortedRecurrences.length > 0) && (
@@ -463,7 +468,7 @@ export default function DeepSearchPage() {
                           {customer.mobile_phone || customer.landline_phone || "-"}
                         </p>
                         <p className="text-sm text-gray-500">{customer.address || "-"}</p>
-                        <p className="text-xs text-gray-400 mt-1">UUID: {customer.uuid}</p>
+                        <p className="p-1 rounded-lg bg-emerald-50 border border-emerald-500 text-xs text-emerald-700 mt-1">UUID: {customer.uuid}</p>
                       </CardContent>
                     </Card>
                   ))}
@@ -501,7 +506,12 @@ export default function DeepSearchPage() {
                         <p className="text-sm text-gray-500">
                           Total: {formatMoney(quote.total_amount)}
                         </p>
-                        <p className="text-xs text-gray-400 mt-1">UUID: {quote.uuid}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          <p className="p-1 rounded-lg bg-blue-50 border border-blue-500 text-blue-700 text-xs text-blue-700 mt-1">UUID: {quote.uuid}</p>
+                          <p className="p-1 rounded-lg bg-emerald-50 border border-emerald-500 text-emerald-700 text-xs text-emerald-700 mt-1">Customer UUID: {quote.customer_uuid}</p>
+                        </div>
+                          
+                       
                       </CardContent>
                     </Card>
                   ))}
@@ -539,6 +549,15 @@ export default function DeepSearchPage() {
                           Scheduled: {formatDateTime(job.scheduled_at)}
                         </p>
                         <p className="text-xs text-gray-400 mt-1">UUID: {job.uuid}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          <p className="px-2 py-1 rounded-lg bg-blue-50 border border-blue-500 text-blue-700 text-xs">
+                            Quote UUID: {job.quote_uuid}
+                          </p>
+
+                          <p className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-500 text-emerald-700 text-xs">
+                            Customer UUID: {job.customer_uuid}
+                          </p>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}

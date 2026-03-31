@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
 import { useUI } from "../context/UIContext";
@@ -75,6 +75,29 @@ const RECURRENCE_OPTIONS: Array<{
   },
 ];
 
+const categoryLabels: Record<string, string> = {
+  property_maintenance: "Property Maintenance",
+  interior_repairs: "Interior Repairs",
+  exterior_maintenance: "Exterior Maintenance",
+  lawn_care: "Lawn Care",
+  garden_services: "Garden Services",
+  cleaning: "Cleaning",
+  junk_removal: "Junk Removal",
+  renovation: "Renovation",
+};
+
+const formatCategoryLabel = (category: string) => {
+  if (!category) return "Other";
+
+  return (
+    categoryLabels[category] ||
+    category
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+  );
+};
+
 const createImageRow = (): DynamicImageInput => ({
   id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
   label: "",
@@ -97,12 +120,10 @@ export default function ContactPage(props: Props) {
     openImage?: (url: string) => void;
   };
 
-  const servicesDropdownRef = useRef<HTMLDivElement | null>(null);
-
   const [imageInputKey, setImageInputKey] = useState(0);
-  const [isServicesOpen, setIsServicesOpen] = useState(false);
   const [formNotice, setFormNotice] = useState<string | null>(null);
   const [isUrgent, setIsUrgent] = useState(false);
+  const [activeServiceCategory, setActiveServiceCategory] = useState<string>("all");
 
   const [formData, setFormData] = useState<FormDataType>({
     firstName: "",
@@ -170,25 +191,36 @@ export default function ContactPage(props: Props) {
     return hasUrgentAllowed && hasUrgentBlocked;
   }, [selectedServices, hasSelectedServices]);
 
-  const selectedServicesSummary = useMemo(() => {
-    const selected = services.filter((s) => s.selected);
-    if (selected.length === 0) return "Select one or more services";
-    if (selected.length <= 2) return selected.map((s) => s.label).join(", ");
-    return `${selected[0].label}, ${selected[1].label} +${
-      selected.length - 2
-    } more`;
+  const categories = useMemo(() => {
+    const unique = Array.from(
+      new Set(services.map((service) => service.category).filter(Boolean))
+    ).sort((a, b) =>
+      formatCategoryLabel(String(a)).localeCompare(formatCategoryLabel(String(b)))
+    );
+
+    return ["all", ...unique] as string[];
   }, [services]);
 
-  const groupedServices = useMemo(() => {
-    const groups: Record<string, ServiceOption[]> = {};
+  const filteredServices = useMemo(() => {
+    const result =
+      activeServiceCategory === "all"
+        ? services
+        : services.filter((service) => service.category === activeServiceCategory);
+
+    return [...result].sort((a, b) => a.label.localeCompare(b.label));
+  }, [services, activeServiceCategory]);
+
+  const countsByCategory = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: services.length,
+    };
 
     for (const service of services) {
-      const key = service.category?.trim() || "Other";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(service);
+      const key = service.category || "Other";
+      counts[key] = (counts[key] || 0) + 1;
     }
 
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+    return counts;
   }, [services]);
 
   const handleChange = (
@@ -298,32 +330,6 @@ export default function ContactPage(props: Props) {
   }, []);
 
   useEffect(() => {
-    const handlePointerDownOutside = (event: Event) => {
-      if (!isServicesOpen) return;
-
-      const target = event.target as Node | null;
-      if (!target) return;
-
-      if (
-        servicesDropdownRef.current &&
-        !servicesDropdownRef.current.contains(target)
-      ) {
-        setIsServicesOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDownOutside, true);
-
-    return () => {
-      document.removeEventListener(
-        "pointerdown",
-        handlePointerDownOutside,
-        true
-      );
-    };
-  }, [isServicesOpen]);
-
-  useEffect(() => {
     return () => {
       imageInputs.forEach((img) => {
         if (img.previewUrl) {
@@ -346,19 +352,18 @@ export default function ContactPage(props: Props) {
     }
   }, [allSelectedAllowUrgent, hasMultipleSelectedServices, isUrgent]);
 
-  const handleServiceChange = (index: number) => {
+  const handleServiceChange = (serviceUuid: string) => {
     if (formNotice) {
       setFormNotice(null);
     }
 
-    setServices((prev) => {
-      const next = [...prev];
-      next[index] = {
-        ...next[index],
-        selected: !next[index].selected,
-      };
-      return next;
-    });
+    setServices((prev) =>
+      prev.map((service) =>
+        service.uuid === serviceUuid
+          ? { ...service, selected: !service.selected }
+          : service
+      )
+    );
   };
 
   const handleClearAllServices = () => {
@@ -483,9 +488,9 @@ export default function ContactPage(props: Props) {
     setImageInputs(createInitialImageRows());
     setServices((prev) => prev.map((s) => ({ ...s, selected: false })));
     setPreferredContactMethod("email");
-    setIsServicesOpen(false);
     setFormNotice(null);
     setIsUrgent(false);
+    setActiveServiceCategory("all");
     setImageInputKey((prev) => prev + 1);
   };
 
@@ -858,8 +863,13 @@ export default function ContactPage(props: Props) {
             />
           </div>
 
-          <div className="space-y-2" ref={servicesDropdownRef}>
-            <label className="text-lg py-1 block">Select Services</label>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-lg py-1 block">Select Services</label>
+              <p className="text-sm text-gray-600">
+                Click one or more services below to add them to the quote request.
+              </p>
+            </div>
 
             {isLoadingServices ? (
               <div className="text-sm text-gray-600">Loading services...</div>
@@ -868,103 +878,123 @@ export default function ContactPage(props: Props) {
                 No services available right now.
               </div>
             ) : (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsServicesOpen((prev) => !prev)}
-                  className="w-full border border-gray-300 rounded px-4 py-3 bg-white text-left flex items-center justify-between hover:border-gray-400 hover:cursor-pointer"
-                >
-                  <span className="truncate pr-4 text-sm sm:text-base">
-                    {selectedServicesSummary}
-                  </span>
-                  <span className="text-sm text-gray-500 shrink-0">
-                    {isServicesOpen
-                      ? "Close"
-                      : selectedServicesCount > 0
-                      ? `${selectedServicesCount} selected`
-                      : "Open"}
-                  </span>
-                </button>
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((cat) => {
+                    const active = cat === activeServiceCategory;
 
-                {isServicesOpen && (
-                  <div className="absolute z-30 mt-2 w-full max-h-80 overflow-y-auto rounded border border-gray-200 bg-white shadow-lg p-3 space-y-4">
-                    <div className="flex items-center justify-between border-b pb-2">
-                      <div className="text-sm font-medium text-gray-700">
-                        {selectedServicesCount > 0
-                          ? `${selectedServicesCount} service${
-                              selectedServicesCount > 1 ? "s" : ""
-                            } selected`
-                          : "Choose one or more services"}
-                      </div>
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setActiveServiceCategory(cat)}
+                        className={[
+                          "px-4 py-2 rounded-full text-sm font-semibold transition border hover:cursor-pointer",
+                          active
+                            ? "bg-green-700 text-white border-green-700 shadow"
+                            : "bg-white text-gray-800 border-gray-200 hover:border-green-300 hover:ring-2 hover:ring-green-200",
+                        ].join(" ")}
+                      >
+                        {cat === "all" ? "All Services" : formatCategoryLabel(cat)}
+                        <span className="ml-2 opacity-80">
+                          ({countsByCategory[cat] || 0})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-                      {selectedServicesCount > 0 && (
+                <div className="flex items-center justify-between rounded border border-gray-200 bg-white px-4 py-3">
+                  <div className="text-sm font-medium text-gray-700">
+                    {selectedServicesCount > 0
+                      ? `${selectedServicesCount} service${
+                          selectedServicesCount > 1 ? "s" : ""
+                        } selected`
+                      : "Choose one or more services"}
+                  </div>
+
+                  {selectedServicesCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearAllServices}
+                      className="text-sm font-medium text-red-600 hover:text-red-700 hover:underline hover:cursor-pointer"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
+
+                {filteredServices.length === 0 ? (
+                  <div className="rounded border bg-gray-50 p-6 text-center text-sm text-gray-600">
+                    No services found in this category.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {filteredServices.map((service) => {
+                      const isSelected = service.selected;
+
+                      return (
                         <button
+                          key={service.uuid}
                           type="button"
-                          onClick={handleClearAllServices}
-                          className="text-sm font-medium text-red-600 hover:text-red-700 hover:underline hover:cursor-pointer"
+                          onClick={() => handleServiceChange(service.uuid)}
+                          className={`w-full text-left rounded-xl border p-4 transition hover:cursor-pointer ${
+                            isSelected
+                              ? "border-green-700 bg-green-50 ring-1 ring-green-700"
+                              : "border-gray-200 bg-white hover:border-green-300 hover:shadow-sm"
+                          }`}
                         >
-                          Clear all
-                        </button>
-                      )}
-                    </div>
-
-                    {groupedServices.map(([category, items]) => (
-                      <div key={category} className="space-y-2">
-                        <div className="text-sm font-semibold uppercase tracking-wide text-gray-500 border-b pb-1">
-                          {category}
-                        </div>
-
-                        <div className="space-y-2">
-                          {items.map((service) => {
-                            const serviceIndex = services.findIndex(
-                              (s) => s.uuid === service.uuid
-                            );
-
-                            return (
-                              <label
-                                key={service.uuid}
-                                className="group flex items-start gap-3 rounded border border-gray-100 px-3 py-2 hover:bg-green-700 hover:cursor-pointer transition"
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <p
+                                className={`text-sm font-semibold ${
+                                  isSelected ? "text-green-700" : "text-gray-600"
+                                }`}
                               >
-                                <input
-                                  type="checkbox"
-                                  checked={service.selected}
-                                  onChange={() =>
-                                    handleServiceChange(serviceIndex)
-                                  }
-                                  className="mt-1 hover:cursor-pointer"
-                                />
-                                <div className="flex flex-col">
-                                  <span className="font-medium text-sm sm:text-base group-hover:text-white">
-                                    {service.label}
+                                {formatCategoryLabel(service.category || "Other")}
+                              </p>
+
+                              <h3 className="text-base sm:text-lg font-bold mt-1 text-gray-900">
+                                {service.label}
+                              </h3>
+
+                              {service.description && (
+                                <p className="mt-2 text-sm text-gray-700 leading-relaxed">
+                                  {service.description}
+                                </p>
+                              )}
+
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {service.requires_images && (
+                                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                                    Photos helpful
                                   </span>
+                                )}
 
-                                  {service.description && (
-                                    <span className="text-xs sm:text-sm text-gray-600 group-hover:text-gray-200">
-                                      {service.description}
-                                    </span>
-                                  )}
+                                {service.urgent_allowed && (
+                                  <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                                    Urgent booking available
+                                  </span>
+                                )}
+                              </div>
+                            </div>
 
-                                  {service.requires_images && (
-                                    <span className="text-xs text-green-700 pt-1 group-hover:text-green-200">
-                                      Images recommended
-                                    </span>
-                                  )}
-
-                                  {service.urgent_allowed && (
-                                    <span className="text-xs text-amber-700 pt-1 group-hover:text-amber-200">
-                                      Urgent booking available
-                                    </span>
-                                  )}
-                                </div>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
+                            <div
+                              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold border ${
+                                isSelected
+                                  ? "bg-green-700 text-white border-green-700"
+                                  : "bg-white text-gray-600 border-gray-300"
+                              }`}
+                            >
+                              {isSelected ? "Selected" : "Click to select"}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
 

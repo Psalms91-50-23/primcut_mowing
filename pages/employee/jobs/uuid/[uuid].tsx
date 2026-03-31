@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { getWindowPreview } from "@/utils/windowPreview";
 import { useUI } from "@/context/UIContext";
 import { useAuth, roleRedirectMap } from "@/context/AuthContext";
+import { formatDateOnly, pad, toDatetimeLocalValue, toDateLocalValue, localDatetimeToISO, getWindowLabel, localDateToDB } from "@/utils/utils";
+
 
 type RecurrencePreset = "one_off" | "weekly" | "fortnightly" | "monthly";
 
@@ -62,6 +64,7 @@ type QuoteRecord = {
   created_at?: string | null;
   has_urgent_fee?: boolean;
   urgent_fee_amount?: number | null;
+  recurrence_frequency?: RecurrencePreset | null;
 };
 
 type CustomerPreview = {
@@ -143,45 +146,34 @@ const WINDOW_OPTIONS: WindowOption[] = [
   { value: "morning", label: "Morning (9am–12pm)", mins: 180 },
   { value: "midday", label: "Midday (12pm–3pm)", mins: 180 },
   { value: "afternoon", label: "Afternoon (3pm–5pm)", mins: 120 },
-  { value: "2hour", label: "2-hour window", mins: 120 },
-  { value: "3hour", label: "3-hour window", mins: 180 },
+  // { value: "2hour", label: "2-hour window", mins: 120 },
+  // { value: "3hour", label: "3-hour window", mins: 180 },
 ];
 
 const RECURRENCE_PAGE_LIMIT = 5;
 const EXTEND_OPTIONS = [3, 6, 12, 24];
 
-// -------------------- Helpers --------------------
-const pad = (n: number) => String(n).padStart(2, "0");
+function deriveRecurrencePresetFromJobOrQuote(
+  job: JobRecord | null | undefined,
+  quote: QuoteRecord | null | undefined
+): RecurrencePreset {
+  const fromJob = deriveRecurrencePreset(job);
 
-function toDatetimeLocalValue(isoOrNull?: string | null) {
-  if (!isoOrNull) return "";
-  const d = new Date(isoOrNull);
-  if (Number.isNaN(d.getTime())) return "";
-  const yyyy = d.getFullYear();
-  const mm = pad(d.getMonth() + 1);
-  const dd = pad(d.getDate());
-  const hh = pad(d.getHours());
-  const min = pad(d.getMinutes());
-  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
-}
+  if (fromJob !== "one_off") {
+    return fromJob;
+  }
 
-function toDateLocalValue(isoOrNull?: string | null) {
-  if (!isoOrNull) return "";
-  const d = new Date(isoOrNull);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
+  const quoteFrequency = quote?.recurrence_frequency;
 
-function localDatetimeToISO(localValue: string) {
-  return new Date(localValue).toISOString();
-}
+  if (
+    quoteFrequency === "weekly" ||
+    quoteFrequency === "fortnightly" ||
+    quoteFrequency === "monthly"
+  ) {
+    return quoteFrequency;
+  }
 
-function localDateToISO(localDate: string) {
-  return new Date(`${localDate}T00:00:00`).toISOString();
-}
-
-function localDateToISOEndOfDay(localDate: string) {
-  return new Date(`${localDate}T23:59:59`).toISOString();
+  return "one_off";
 }
 
 function presetToRecurrenceFields(preset: RecurrencePreset) {
@@ -189,7 +181,7 @@ function presetToRecurrenceFields(preset: RecurrencePreset) {
     return { is_recurring: true, recurrence_frequency: "weekly", recurrence_interval: 1 };
   }
   if (preset === "fortnightly") {
-    return { is_recurring: true, recurrence_frequency: "fortnightly", recurrence_interval: 1 };
+    return { is_recurring: true, recurrence_frequency: "fortnightly", recurrence_interval: 2 };
   }
   if (preset === "monthly") {
     return { is_recurring: true, recurrence_frequency: "monthly", recurrence_interval: 1 };
@@ -218,9 +210,14 @@ function deriveRecurrencePreset(job: JobRecord | null | undefined): RecurrencePr
 
   if (!isRecurring) return "one_off";
   if (freq === "weekly" && interval === 1) return "weekly";
-  if (freq === "fortnightly" && interval === 1) return "fortnightly";
+  if (freq === "fortnightly" && interval === 2) return "fortnightly";
   if (freq === "monthly" && interval === 1) return "monthly";
-  return "weekly";
+
+  if (freq === "weekly") return "weekly";
+  if (freq === "fortnightly") return "fortnightly";
+  if (freq === "monthly") return "monthly";
+
+  return "one_off";
 }
 
 function formatMoney(value?: number | string | null) {
@@ -447,6 +444,7 @@ export default function JobPage() {
       if (!res.ok) throw new Error(data?.error || "Failed to load job");
 
       const j = (data.job || null) as JobRecord;
+      console.log({j})
       setJob(j);
       setScheduledDateLocal(toDateLocalValue(j?.scheduled_at));
       setScheduledWindowMins(clampWindowMins(j?.scheduled_window_mins, 240));
@@ -506,11 +504,24 @@ export default function JobPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Failed to load quote");
 
-      setQuote(data?.quote || null);
+      const fetchedQuote = (data?.quote || null) as QuoteRecord | null;
+      setQuote(fetchedQuote);
+
+      setRecurrencePreset((prev) => {
+        const derived = deriveRecurrencePresetFromJobOrQuote(jobRecord, fetchedQuote);
+        return prev === derived ? prev : derived;
+      });
     } catch (err: any) {
       console.error(err);
       setQuoteError(err?.message || "Failed to load quote");
-      setQuote(jobRecord?.quote || null);
+
+      const fallbackQuote = (jobRecord?.quote || null) as QuoteRecord | null;
+      setQuote(fallbackQuote);
+
+      setRecurrencePreset((prev) => {
+        const derived = deriveRecurrencePresetFromJobOrQuote(jobRecord, fallbackQuote);
+        return prev === derived ? prev : derived;
+      });
     } finally {
       setQuoteLoading(false);
     }
@@ -608,33 +619,28 @@ export default function JobPage() {
     return resolvedQuote?.address || "—";
   }, [resolvedQuote]);
 
-  const scheduledStartISO = useMemo(() => {
-    if (!scheduledDateLocal) return null;
-    return localDateToISO(scheduledDateLocal);
+  const scheduledDateValue = useMemo(() => {
+    return scheduledDateLocal || null;
   }, [scheduledDateLocal]);
 
   const scheduledPreview = useMemo(() => {
-    if (!scheduledDateLocal) return "Not set";
-    return new Date(`${scheduledDateLocal}T00:00:00`).toLocaleDateString("en-NZ");
-  }, [scheduledDateLocal]);
+    if (!scheduledDateValue) return "Not set";
+    return formatDateOnly(scheduledDateValue);
+  }, [scheduledDateValue]);
 
   const masterWindowPreview = useMemo(() => {
-    if (!scheduledStartISO) return "—";
-    return getWindowPreview(
-      scheduledStartISO,
-      scheduledWindowPreset ?? "anytime",
-      scheduledWindowMins
-    );
-  }, [scheduledStartISO, scheduledWindowPreset, scheduledWindowMins]);
+    if (!scheduledDateValue) return "—";
+    return getWindowLabel(scheduledWindowPreset ?? "anytime", scheduledWindowMins);
+  }, [scheduledDateValue, scheduledWindowPreset, scheduledWindowMins]);
 
   const endDatePreview = useMemo(() => {
     if (!endDateLocal) return "No end date";
-    return new Date(`${endDateLocal}T00:00:00`).toLocaleDateString("en-NZ");
+    return formatDateOnly(endDateLocal);
   }, [endDateLocal]);
 
-  const resolvedQuoteUrgentFeeAmount = useMemo(() => {
-    return Number(resolvedQuote?.urgent_fee_amount ?? 0);
-  }, [resolvedQuote]);
+    const resolvedQuoteUrgentFeeAmount = useMemo(() => {
+      return Number(resolvedQuote?.urgent_fee_amount ?? 0);
+    }, [resolvedQuote]);
 
   const resolvedJobUrgentFeeAmount = useMemo(() => {
     return Number(job?.urgent_fee_amount ?? 0);
@@ -683,25 +689,25 @@ export default function JobPage() {
     setSuccessMsg(null);
 
     try {
-      const scheduled_at = scheduledDateLocal ? localDateToISO(scheduledDateLocal) : null;
+      const scheduled_date = localDateToDB(scheduledDateLocal);
 
       const { is_recurring, recurrence_frequency, recurrence_interval } =
         presetToRecurrenceFields(recurrencePreset);
 
       const recurrence_end_date =
-        recurrencePreset !== "one_off" && endDateLocal
-          ? localDateToISOEndOfDay(endDateLocal)
-          : null;
+        recurrencePreset !== "one_off" ? localDateToDB(endDateLocal) : null;
+
       console.log("PATCHING SCHEDULE", `/api/employee/jobs/${uuid}/schedule`);
+
       const res = await fetch(`/api/employee/jobs/${uuid}/schedule`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "job",
           job: {
-            scheduled_at,
-            scheduled_window_mins: scheduled_at ? scheduledWindowMins : null,
-            scheduled_window_preset: scheduled_at ? scheduledWindowPreset : null,
+            scheduled_date,
+            scheduled_window_mins: scheduled_date ? scheduledWindowMins : null,
+            scheduled_window_preset: scheduled_date ? scheduledWindowPreset : null,
             is_recurring,
             recurrence_frequency,
             recurrence_interval,
@@ -751,15 +757,17 @@ export default function JobPage() {
     setSaving(true);
     setErrorMsg(null);
     setSuccessMsg(null);
-    console.log("PATCHING SCHEDULE on clear", `/api/employee/jobs/${uuid}/schedule`);
+
     try {
+      console.log("PATCHING SCHEDULE on clear", `/api/employee/jobs/${uuid}/schedule`);
+
       const res = await fetch(`/api/employee/jobs/${uuid}/schedule`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "job",
           job: {
-            scheduled_at: null,
+            scheduled_date: null,
             scheduled_window_mins: null,
             scheduled_window_preset: null,
             is_recurring: false,
@@ -777,6 +785,12 @@ export default function JobPage() {
       if (!res.ok) throw new Error(data?.error || "Failed to clear schedule");
 
       setSuccessMsg("Schedule cleared.");
+      setScheduledDateLocal("");
+      setScheduledWindowMins(240);
+      setScheduledWindowPreset("anytime");
+      setRecurrencePreset("one_off");
+      setEndDateLocal("");
+      setDirty(false);
       setRecurrencePage(1);
 
       const loadedJob = await fetchJob();
@@ -1569,6 +1583,12 @@ export default function JobPage() {
                   value={resolvedQuote?.created_at ? formatDate(resolvedQuote.created_at) : "—"}
                 />
                 <ReadOnlyValue label="Quote total" value={formatMoney(resolvedQuote?.total_amount)} />
+                <ReadOnlyValue
+                  label="Quote frequency"
+                  value={prettyPreset(
+                    (resolvedQuote?.recurrence_frequency as RecurrencePreset) || "one_off"
+                  )}
+                />
                 <ReadOnlyValue
                   label="Urgent fee"
                   value={
