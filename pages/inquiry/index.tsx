@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "@/components/headers/Header";
+import { useRouter } from "next/router";
 
 type ServiceOption = {
   uuid: string;
@@ -10,7 +11,32 @@ type ServiceOption = {
   requires_images?: boolean;
 };
 
+const categoryLabels: Record<string, string> = {
+  property_maintenance: "Property Maintenance",
+  interior_repairs: "Interior Repairs",
+  exterior_maintenance: "Exterior Maintenance",
+  lawn_care: "Lawn Care",
+  garden_services: "Garden Services",
+  cleaning: "Cleaning",
+  junk_removal: "Junk Removal",
+  renovation: "Renovation",
+};
+
+const formatCategoryLabel = (category: string) => {
+  if (!category) return "Other";
+
+  return (
+    categoryLabels[category] ||
+    category
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+  );
+};
+
 export default function InquiryPage() {
+  const router = useRouter();
+
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -20,13 +46,13 @@ export default function InquiryPage() {
     message: "",
   });
 
+  const [consent, setConsent] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [isLoadingServices, setIsLoadingServices] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [servicesOpen, setServicesOpen] = useState(false);
-
-  const servicesDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [activeServiceCategory, setActiveServiceCategory] =
+    useState<string>("all");
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -50,65 +76,99 @@ export default function InquiryPage() {
     });
   };
 
-  const getSelectedServiceLabels = () => {
-    if (!form.services.length) return "Select services";
-
-    return services
-      .filter((service) => form.services.includes(service.label))
-      .map((service) => service.label)
-      .join(", ");
+  const handleClearAllServices = () => {
+    setForm((prev) => ({
+      ...prev,
+      services: [],
+    }));
   };
-
- useEffect(() => {
-  const fetchServices = async () => {
-    try {
-      setIsLoadingServices(true);
-
-      const res = await fetch("/api/services", {
-        method: "GET",
-      });
-
-      const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(result?.error || "Failed to load services");
-      }
-
-      const serviceRows = Array.isArray(result?.data) ? result.data : [];
-
-      const mappedServices = serviceRows.map((service: any) => ({
-        uuid: service.uuid,
-        code: service.code,
-        label: service.label,
-      }));
-
-      setServices(mappedServices);
-    } catch (error) {
-      console.error("Failed to fetch services:", error);
-      setServices([]);
-    } finally {
-      setIsLoadingServices(false);
-    }
-  };
-
-  fetchServices();
-}, []);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        servicesDropdownRef.current &&
-        !servicesDropdownRef.current.contains(event.target as Node)
-      ) {
-        setServicesOpen(false);
+    const fetchServices = async () => {
+      try {
+        setIsLoadingServices(true);
+
+        const res = await fetch("/api/services", {
+          method: "GET",
+        });
+
+        const result = await res.json();
+
+        if (!res.ok) {
+          throw new Error(result?.error || "Failed to load services");
+        }
+
+        const serviceRows = Array.isArray(result?.data) ? result.data : [];
+
+        const mappedServices = serviceRows.map((service: any) => ({
+          uuid: service.uuid,
+          code: service.code,
+          label: service.label,
+          description: service.description ?? null,
+          category: service.category ?? null,
+          requires_images: Boolean(service.requires_images),
+        }));
+
+        setServices(mappedServices);
+      } catch (error) {
+        console.error("Failed to fetch services:", error);
+        setServices([]);
+      } finally {
+        setIsLoadingServices(false);
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    fetchServices();
   }, []);
+
+  const selectedServices = useMemo(
+    () => services.filter((service) => form.services.includes(service.label)),
+    [services, form.services]
+  );
+
+  const selectedServicesCount = selectedServices.length;
+
+  const categories = useMemo(() => {
+    const unique = Array.from(
+      new Set(services.map((service) => service.category).filter(Boolean))
+    ).sort((a, b) =>
+      formatCategoryLabel(String(a)).localeCompare(formatCategoryLabel(String(b)))
+    );
+
+    return ["all", ...unique] as string[];
+  }, [services]);
+
+  const countsByCategory = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: services.length,
+    };
+
+    for (const service of services) {
+      const key = service.category || "Other";
+      counts[key] = (counts[key] || 0) + 1;
+    }
+
+    return counts;
+  }, [services]);
+
+  const filteredServices = useMemo(() => {
+    const base =
+      activeServiceCategory === "all"
+        ? services
+        : services.filter((service) => service.category === activeServiceCategory);
+
+    const selected = base
+      .filter((service) => form.services.includes(service.label))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    const unselected = base
+      .filter((service) => !form.services.includes(service.label))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    return [...selected, ...unselected];
+  }, [services, activeServiceCategory, form.services]);
+
+  const shouldServicesScroll = filteredServices.length > 4;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,7 +199,8 @@ export default function InquiryPage() {
         services: [],
         message: "",
       });
-      setServicesOpen(false);
+      setConsent(false);
+      setActiveServiceCategory("all");
     } catch (err) {
       console.error("Inquiry submit error:", err);
     } finally {
@@ -148,17 +209,17 @@ export default function InquiryPage() {
   };
 
   if (isLoadingServices && services.length === 0) {
-  return (
-    <section className="flex justify-center items-center h-screen bg-gray-50">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
-        <p className="text-gray-700 text-base font-medium">
-          Loading services...
-        </p>
-      </div>
-    </section>
-  );
-}
+    return (
+      <section className="flex justify-center items-center h-screen bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
+          <p className="text-gray-700 text-base font-medium">
+            Loading services...
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="relative w-full min-h-screen flex items-center justify-center px-6 py-16">
@@ -172,8 +233,31 @@ export default function InquiryPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-2xl">
-        <div className="w-full">
-          <Header />
+        <div className="sticky top-20 z-50 w-full bg-green-900/60 backdrop-blur-md px-4 py-3 flex items-center justify-between text-white">
+          <h1 className="flex items-center font-bold m-0 p-0 text-lg sm:text-xl md:text-2xl">
+            <span className="text-xl sm:text-2xl md:text-3xl translate-x-1">
+              H
+            </span>
+            <img
+              src="/images/happy-house-1.png"
+              alt="Happy house Logo"
+              className="ml-1 w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10"
+            />
+            <span className="ml-1">ppy Property</span>
+          </h1>
+
+          <button
+            onClick={() => {
+              if (window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/");
+              }
+            }}
+            className="inline-flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 cursor-pointer transition hover:bg-white active:scale-[0.98]"
+          >
+            ← Back
+          </button>
         </div>
 
         <div className="w-full border-l-8 border-r-8 border-t-8 border-white p-6">
@@ -252,53 +336,159 @@ export default function InquiryPage() {
             />
           </div>
 
-          <div className="relative" ref={servicesDropdownRef}>
-            <label className="block text-sm font-medium mb-1">
-              Services (optional)
-            </label>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <label className="block text-sm font-medium">
+                Services (optional)
+              </label>
+              <p className="text-sm text-gray-600">
+                Selected services stay at the top and can be removed without
+                scrolling.
+              </p>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setServicesOpen((prev) => !prev)}
-              className="w-full border rounded-lg px-4 py-2 text-left bg-white focus:outline-none focus:ring-0 flex items-center justify-between hover:cursor-pointer"
-            >
-              <span
-                className={
-                  form.services.length ? "text-black" : "text-gray-500"
-                }
-              >
-                {isLoadingServices ? "Loading services..." : getSelectedServiceLabels()}
-              </span>
-              <span className="ml-3 text-sm text-gray-500">
-                {servicesOpen ? "▲" : "▼"}
-              </span>
-            </button>
+            {isLoadingServices ? (
+              <div className="text-sm text-gray-600">Loading services...</div>
+            ) : services.length === 0 ? (
+              <div className="text-sm text-red-600">
+                No services available right now.
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((cat) => {
+                    const active = cat === activeServiceCategory;
+                    const hasSelectedInCategory =
+                      cat === "all"
+                        ? selectedServices.length > 0
+                        : services.some(
+                            (service) =>
+                              service.category === cat &&
+                              form.services.includes(service.label)
+                          );
 
-            {servicesOpen && !isLoadingServices && (
-              <div className="absolute z-20 mt-2 w-full bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto ">
-                {services.length > 0 ? (
-                  services.map((service) => (
-                    <label
-                      key={service.uuid}
-                      className="group flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer hover:bg-green-700 hover:text-white transition "
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setActiveServiceCategory(cat)}
+                        className={[
+                          "px-4 py-2 rounded-full text-sm font-semibold transition border hover:cursor-pointer",
+                          active
+                            ? "bg-green-700 text-white border-green-700 shadow"
+                            : hasSelectedInCategory
+                            ? "bg-green-50 text-green-800 border-green-300"
+                            : "bg-white text-gray-800 border-gray-200 hover:border-green-300 hover:ring-2 hover:ring-green-200",
+                        ].join(" ")}
+                      >
+                        {cat === "all" ? "All Services" : formatCategoryLabel(cat)}
+                        <span className="ml-2 opacity-80">
+                          ({countsByCategory[cat] || 0})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center justify-between rounded border border-gray-200 bg-white px-4 py-3">
+                  <div className="text-sm font-medium text-gray-700">
+                    {selectedServicesCount > 0
+                      ? `${selectedServicesCount} service${
+                          selectedServicesCount > 1 ? "s" : ""
+                        } selected`
+                      : "Choose one or more services"}
+                  </div>
+
+                  {selectedServicesCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearAllServices}
+                      className="text-sm font-medium text-red-600 hover:text-red-700 hover:underline hover:cursor-pointer"
                     >
-                      <input
-                        type="checkbox"
-                        checked={form.services.includes(service.label)}
-                        onChange={() => toggleService(service.label)}
-                        className="h-4 w-4 hover:cursor-pointer"
-                      />
-                      <span className="text-sm text-gray-800 group-hover:text-white">
-                        {service.label}
-                      </span>
-                    </label>
-                  ))
-                ) : (
-                  <div className="px-4 py-3 text-sm text-gray-500">
-                    No services available
+                      Clear all
+                    </button>
+                  )}
+                </div>
+
+                {selectedServicesCount > 0 && (
+                  <div className="rounded-xl border border-green-200 bg-green-50 p-3">
+                    <p className="text-xs font-semibold text-green-800 mb-2">
+                      Selected services
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {selectedServices
+                        .slice()
+                        .sort((a, b) => a.label.localeCompare(b.label))
+                        .map((service) => (
+                          <button
+                            key={service.uuid}
+                            type="button"
+                            onClick={() => toggleService(service.label)}
+                            className="inline-flex items-center gap-2 rounded-full border border-green-300 bg-white px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100 hover:cursor-pointer"
+                          >
+                            <span>{service.label}</span>
+                            <span className="text-xs">✕</span>
+                          </button>
+                        ))}
+                    </div>
                   </div>
                 )}
-              </div>
+
+                {filteredServices.length === 0 ? (
+                  <div className="rounded border bg-gray-50 p-6 text-center text-sm text-gray-600">
+                    No services found in this category.
+                  </div>
+                ) : (
+                  <div
+                    className={`rounded-xl border border-gray-200 bg-white/60 p-2 ${
+                      shouldServicesScroll
+                        ? "max-h-[20rem] overflow-y-auto pr-1"
+                        : "overflow-visible"
+                    }`}
+                  >
+                    <div className="grid grid-cols-1 gap-2">
+                      {filteredServices.map((service) => {
+                        const isSelected = form.services.includes(service.label);
+
+                        return (
+                          <button
+                            key={service.uuid}
+                            type="button"
+                            onClick={() => toggleService(service.label)}
+                            className={`w-full text-left rounded-lg border px-4 py-3 transition hover:cursor-pointer ${
+                              isSelected
+                                ? "border-green-700 bg-green-50 ring-1 ring-green-700"
+                                : "border-gray-200 bg-white hover:border-green-300"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-gray-500 mb-1">
+                                  {formatCategoryLabel(service.category || "Other")}
+                                </p>
+                                <p className="text-sm sm:text-base font-medium text-gray-900">
+                                  {service.label}
+                                </p>
+                              </div>
+
+                              <div
+                                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold border ${
+                                  isSelected
+                                    ? "bg-green-700 text-white border-green-700"
+                                    : "bg-white text-gray-600 border-gray-300"
+                                }`}
+                              >
+                                {isSelected ? "Selected" : "Select"}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -315,10 +505,34 @@ export default function InquiryPage() {
             />
           </div>
 
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-1 h-4 w-4 cursor-pointer"
+            />
+
+            <p className="text-sm text-gray-700">
+              By submitting this form, you agree that{" "}
+              <span className="font-medium">Happy Property</span> may collect and
+              store your information for business purposes in accordance with our{" "}
+              <a
+                href="/privacy-policies"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-blue-600 hover:text-blue-800"
+              >
+                Privacy Policy
+              </a>
+              .
+            </p>
+          </div>
+
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-black text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition hover:cursor-pointer disabled:bg-gray-400 disabled:hover:bg-gray-400"
+            disabled={loading || !consent}
+            className="w-full bg-black text-white py-3 rounded-lg font-semibold transition hover:bg-gray-800 hover:cursor-pointer disabled:bg-gray-400 disabled:hover:bg-gray-400 disabled:cursor-not-allowed"
           >
             {loading ? "Sending..." : "Send Message"}
           </button>

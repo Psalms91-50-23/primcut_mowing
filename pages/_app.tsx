@@ -1,10 +1,10 @@
 // pages/_app.tsx
-import '../styles/globals.css'  // <-- this is your actual global styles file
-import type { AppProps } from 'next/app'
+import type { AppProps } from 'next/app';
+import "../styles/globals.css";
 import { useEffect } from "react";
-import NavBar from '../components/NavBar'
-import { AuthProvider } from '../context/AuthContext'
-import { UIProvider, useUI } from '../context/UIContext'
+import NavBar from '../components/NavBar';
+import { AuthProvider } from '../context/AuthContext';
+import { UIProvider, useUI } from '../context/UIContext';
 import { Toaster } from "react-hot-toast";
 import { setupShadowDOMStyling } from "../lib/gmpShadowStyling";
 import Script from "next/script";

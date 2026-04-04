@@ -6,6 +6,7 @@ import Header from "@/components/headers/Header";
 import GoogleAddressAutocomplete from "@/components/GoogleAddressAutocomplete";
 import { nzPhoneFromIntl } from "@/utils/phone";
 import { useCustomer } from "@/context/CustomerContext";
+import { useRouter } from "next/router";
 
 type Props = {};
 
@@ -45,7 +46,7 @@ type ServiceOption = {
 };
 
 const MAX_IMAGE_UPLOADS = 10;
-const INITIAL_IMAGE_SLOTS = 4;
+const INITIAL_IMAGE_SLOTS = 2;
 const URGENT_FEE_AMOUNT = 200;
 
 const RECURRENCE_OPTIONS: Array<{
@@ -115,7 +116,7 @@ export default function ContactPage(props: Props) {
   const { loading } = useAuth();
   const { customer, customerLoading } = useCustomer();
   const [hasPrefilledCustomerData, setHasPrefilledCustomerData] = useState(false);
-
+  const router = useRouter();
   const { openImage } = useUI() as {
     openImage?: (url: string) => void;
   };
@@ -124,6 +125,7 @@ export default function ContactPage(props: Props) {
   const [formNotice, setFormNotice] = useState<string | null>(null);
   const [isUrgent, setIsUrgent] = useState(false);
   const [activeServiceCategory, setActiveServiceCategory] = useState<string>("all");
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
 
   const [formData, setFormData] = useState<FormDataType>({
     firstName: "",
@@ -148,7 +150,6 @@ export default function ContactPage(props: Props) {
 
   const [services, setServices] = useState<ServiceOption[]>([]);
 
-  const selectedServicesCount = services.filter((s) => s.selected).length;
   const canAddMoreImages = imageInputs.length < MAX_IMAGE_UPLOADS;
 
   const resolvedFirstName = getSafeString(customer?.first_name);
@@ -170,6 +171,7 @@ export default function ContactPage(props: Props) {
     [services]
   );
 
+  const selectedServicesCount = selectedServices.length;
   const hasSelectedServices = selectedServices.length > 0;
   const hasMultipleSelectedServices = selectedServices.length > 1;
 
@@ -202,12 +204,20 @@ export default function ContactPage(props: Props) {
   }, [services]);
 
   const filteredServices = useMemo(() => {
-    const result =
+    const base =
       activeServiceCategory === "all"
         ? services
         : services.filter((service) => service.category === activeServiceCategory);
 
-    return [...result].sort((a, b) => a.label.localeCompare(b.label));
+    const selected = base
+      .filter((service) => service.selected)
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    const unselected = base
+      .filter((service) => !service.selected)
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    return [...selected, ...unselected];
   }, [services, activeServiceCategory]);
 
   const countsByCategory = useMemo(() => {
@@ -222,6 +232,8 @@ export default function ContactPage(props: Props) {
 
     return counts;
   }, [services]);
+
+  const shouldServicesScroll = filteredServices.length > 4;
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -491,6 +503,7 @@ export default function ContactPage(props: Props) {
     setFormNotice(null);
     setIsUrgent(false);
     setActiveServiceCategory("all");
+    setAgreedToPrivacy(false);
     setImageInputKey((prev) => prev + 1);
   };
 
@@ -498,6 +511,14 @@ export default function ContactPage(props: Props) {
     e.preventDefault();
     setIsSubmitting(true);
     setFormNotice(null);
+
+    if (!agreedToPrivacy) {
+      alert(
+        "Please confirm that you agree to our use of your information for business purposes before sending your message."
+      );
+      setIsSubmitting(false);
+      return;
+    }
 
     if (!formData.mobile.trim() && !formData.landline.trim()) {
       alert("Please provide at least a mobile or landline number.");
@@ -582,6 +603,7 @@ export default function ContactPage(props: Props) {
         formData.recurrenceFrequency
       );
       submitFormData.append("urgent", String(isUrgent));
+      submitFormData.append("privacy_consent", String(agreedToPrivacy));
       submitFormData.append("services", JSON.stringify(selectedServicesPayload));
 
       filledImageRows.forEach((img, index) => {
@@ -642,6 +664,26 @@ export default function ContactPage(props: Props) {
       <div className="absolute inset-0 bg-black/50 z-0"></div>
 
       <div className="relative z-10 w-full flex flex-col items-center pt-20 px-6 max-w-2xl">
+        <div className="sticky top-20 z-50 w-full">
+          <div className="w-full backdrop-blur-md px-4 py-3 flex items-center justify-between text-white rounded-t-lg">
+            <div></div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (window.history.length > 1) {
+                  router.back();
+                } else {
+                  router.push("/");
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 transition hover:bg-white active:scale-[0.98] hover:cursor-pointer"
+            >
+              ← Back
+            </button>
+          </div>
+        </div>
+
         <div className="relative w-full text-center space-y-2">
           <h1 className="text-3xl md:text-4xl font-bold mb-6 text-white">
             Contact Us
@@ -867,7 +909,7 @@ export default function ContactPage(props: Props) {
             <div className="flex flex-col gap-2">
               <label className="text-lg py-1 block">Select Services</label>
               <p className="text-sm text-gray-600">
-                Click one or more services below to add them to the quote request.
+                Selected services stay at the top and can be removed without scrolling.
               </p>
             </div>
 
@@ -882,6 +924,13 @@ export default function ContactPage(props: Props) {
                 <div className="flex flex-wrap gap-2">
                   {categories.map((cat) => {
                     const active = cat === activeServiceCategory;
+                    const hasSelectedInCategory =
+                      cat === "all"
+                        ? selectedServices.length > 0
+                        : services.some(
+                            (service) =>
+                              service.category === cat && service.selected
+                          );
 
                     return (
                       <button
@@ -892,6 +941,8 @@ export default function ContactPage(props: Props) {
                           "px-4 py-2 rounded-full text-sm font-semibold transition border hover:cursor-pointer",
                           active
                             ? "bg-green-700 text-white border-green-700 shadow"
+                            : hasSelectedInCategory
+                            ? "bg-green-50 text-green-800 border-green-300"
                             : "bg-white text-gray-800 border-gray-200 hover:border-green-300 hover:ring-2 hover:ring-green-200",
                         ].join(" ")}
                       >
@@ -924,74 +975,107 @@ export default function ContactPage(props: Props) {
                   )}
                 </div>
 
+                {selectedServicesCount > 0 && (
+                  <div className="rounded-xl border border-green-200 bg-green-50 p-3">
+                    <p className="text-xs font-semibold text-green-800 mb-2">
+                      Selected services
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {selectedServices
+                        .slice()
+                        .sort((a, b) => a.label.localeCompare(b.label))
+                        .map((service) => (
+                          <button
+                            key={service.uuid}
+                            type="button"
+                            onClick={() => handleServiceChange(service.uuid)}
+                            className="inline-flex items-center gap-2 rounded-full border border-green-300 bg-white px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100 hover:cursor-pointer"
+                          >
+                            <span>{service.label}</span>
+                            <span className="text-xs">✕</span>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
                 {filteredServices.length === 0 ? (
                   <div className="rounded border bg-gray-50 p-6 text-center text-sm text-gray-600">
                     No services found in this category.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-3">
-                    {filteredServices.map((service) => {
-                      const isSelected = service.selected;
+                  <div
+                    className={`rounded-xl border border-gray-200 bg-white/60 p-2 ${
+                      shouldServicesScroll
+                        ? "max-h-[34rem] overflow-y-auto pr-1"
+                        : "overflow-visible"
+                    }`}
+                  >
+                    <div className="grid grid-cols-1 gap-3">
+                      {filteredServices.map((service) => {
+                        const isSelected = service.selected;
 
-                      return (
-                        <button
-                          key={service.uuid}
-                          type="button"
-                          onClick={() => handleServiceChange(service.uuid)}
-                          className={`w-full text-left rounded-xl border p-4 transition hover:cursor-pointer ${
-                            isSelected
-                              ? "border-green-700 bg-green-50 ring-1 ring-green-700"
-                              : "border-gray-200 bg-white hover:border-green-300 hover:shadow-sm"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <p
-                                className={`text-sm font-semibold ${
-                                  isSelected ? "text-green-700" : "text-gray-600"
+                        return (
+                          <button
+                            key={service.uuid}
+                            type="button"
+                            onClick={() => handleServiceChange(service.uuid)}
+                            className={`w-full text-left rounded-xl border p-4 transition hover:cursor-pointer ${
+                              isSelected
+                                ? "border-green-700 bg-green-50 ring-1 ring-green-700"
+                                : "border-gray-200 bg-white hover:border-green-300 hover:shadow-sm"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1">
+                                <p
+                                  className={`text-sm font-semibold ${
+                                    isSelected ? "text-green-700" : "text-gray-600"
+                                  }`}
+                                >
+                                  {formatCategoryLabel(service.category || "Other")}
+                                </p>
+
+                                <h3 className="text-base sm:text-lg font-bold mt-1 text-gray-900">
+                                  {service.label}
+                                </h3>
+
+                                {service.description && (
+                                  <p className="mt-2 text-sm text-gray-700 leading-relaxed">
+                                    {service.description}
+                                  </p>
+                                )}
+
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {service.requires_images && (
+                                    <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                                      Photos helpful
+                                    </span>
+                                  )}
+
+                                  {service.urgent_allowed && (
+                                    <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                                      Urgent booking available
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div
+                                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold border ${
+                                  isSelected
+                                    ? "bg-green-700 text-white border-green-700"
+                                    : "bg-white text-gray-600 border-gray-300"
                                 }`}
                               >
-                                {formatCategoryLabel(service.category || "Other")}
-                              </p>
-
-                              <h3 className="text-base sm:text-lg font-bold mt-1 text-gray-900">
-                                {service.label}
-                              </h3>
-
-                              {service.description && (
-                                <p className="mt-2 text-sm text-gray-700 leading-relaxed">
-                                  {service.description}
-                                </p>
-                              )}
-
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {service.requires_images && (
-                                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                                    Photos helpful
-                                  </span>
-                                )}
-
-                                {service.urgent_allowed && (
-                                  <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
-                                    Urgent booking available
-                                  </span>
-                                )}
+                                {isSelected ? "Selected" : "Click to select"}
                               </div>
                             </div>
-
-                            <div
-                              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold border ${
-                                isSelected
-                                  ? "bg-green-700 text-white border-green-700"
-                                  : "bg-white text-gray-600 border-gray-300"
-                              }`}
-                            >
-                              {isSelected ? "Selected" : "Click to select"}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </>
@@ -1144,20 +1228,49 @@ export default function ContactPage(props: Props) {
             </button>
           </div>
 
+          <div className="rounded border border-gray-200 bg-white px-4 py-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={agreedToPrivacy}
+                onChange={(e) => setAgreedToPrivacy(e.target.checked)}
+                className="mt-1 h-4 w-4 shrink-0 accent-green-700 cursor-pointer"
+              />
+              <span className="text-sm text-gray-700 leading-relaxed">
+                By using our services, you agree that Happy Property may collect,
+                store, and use your information for business purposes related to
+                your enquiry, quote, booking, and service delivery. Read our{" "}
+                <a
+                  href="/privacy-policies"
+                  className="text-green-700 font-semibold underline hover:text-green-900"
+                >
+                  Privacy Policy
+                </a>
+                .
+              </span>
+            </label>
+          </div>
+
           <div className="py-5">
             <button
               type="submit"
-              disabled={isSubmitting || isLoadingServices}
+              disabled={isSubmitting || isLoadingServices || !agreedToPrivacy}
               className={`w-full flex items-center justify-center gap-2 py-2 rounded transition
                 ${
-                  isSubmitting || isLoadingServices
-                    ? "bg-green-600 cursor-not-allowed"
+                  isSubmitting || isLoadingServices || !agreedToPrivacy
+                    ? "bg-green-600/70 cursor-not-allowed"
                     : "bg-green-700 hover:bg-green-900 hover:cursor-pointer"
                 }
                 text-white`}
             >
               {isSubmitting ? "Sending..." : "Send Message"}
             </button>
+
+            {!agreedToPrivacy && (
+              <p className="text-xs text-red-600 mt-2 text-center">
+                Please confirm the privacy checkbox before sending your message.
+              </p>
+            )}
           </div>
         </form>
       </div>

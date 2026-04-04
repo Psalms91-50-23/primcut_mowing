@@ -2,6 +2,7 @@ import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import PasswordStrengthBar from "react-password-strength-bar";
+import { getRecaptchaV3Token } from "../utils/utils";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -17,9 +18,13 @@ export default function ResetPasswordPage() {
   const [tokenValid, setTokenValid] = useState(false);
   const [tokenExpired, setTokenExpired] = useState(false);
 
-  // Check token validity on load
   useEffect(() => {
-    if (!token) return;
+    if (!token || typeof token !== "string") {
+      setLoadingToken(false);
+      setTokenValid(false);
+      setTokenExpired(false);
+      return;
+    }
 
     const checkToken = async () => {
       try {
@@ -33,44 +38,28 @@ export default function ResetPasswordPage() {
 
         const data = await res.json();
 
-        if (!res.ok || data.error === "Token expired") {
+        if (!res.ok) {
           setTokenValid(false);
-          setTokenExpired(true);
-        } else {
-          setTokenValid(true);
+
+          if (data?.code === "TOKEN_EXPIRED") {
+            setTokenExpired(true);
+          } else {
+            setTokenExpired(true);
+          }
+
+          return;
         }
+
+        setTokenValid(true);
+        setTokenExpired(false);
       } catch (err) {
-        console.error(err);
+        console.error("Check token failed:", err);
         setTokenValid(false);
         setTokenExpired(true);
       } finally {
         setLoadingToken(false);
       }
     };
-    // const checkToken = async () => {
-    //   try {
-    //     setLoadingToken(true);
-    //     const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/password-reset/check`, {
-    //       method: "POST",
-    //       headers: { "Content-Type": "application/json" },
-    //       body: JSON.stringify({ token }),
-    //     });
-    //     const data = await res.json();
-
-    //     if (!res.ok || data.error === "Token expired") {
-    //       setTokenValid(false);
-    //       setTokenExpired(true);
-    //     } else {
-    //       setTokenValid(true);
-    //     }
-    //   } catch (err) {
-    //     console.error(err);
-    //     setTokenValid(false);
-    //     setTokenExpired(true);
-    //   } finally {
-    //     setLoadingToken(false);
-    //   }
-    // };
 
     checkToken();
   }, [token]);
@@ -102,7 +91,7 @@ export default function ResetPasswordPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        return toast.error(data.error || "Failed to reset password");
+        return toast.error(data?.error || "Failed to reset password");
       }
 
       toast.success("Password reset successfully!");
@@ -115,54 +104,37 @@ export default function ResetPasswordPage() {
     }
   };
 
-  // const handleReset = async (e: React.FormEvent<HTMLFormElement>) => {
-  //   e.preventDefault();
-
-  //   if (!password || !confirmPassword) return toast.error("Please fill out both fields");
-  //   if (password !== confirmPassword) return toast.error("Passwords do not match");
-  //   if (!token || typeof token !== "string") return toast.error("Invalid reset link");
-
-  //   try {
-  //     setLoading(true);
-  //     const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/password-reset/reset`, {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ token, newPassword: password }),
-  //     });
-  //     const data = await res.json();
-
-  //     if (!res.ok) return toast.error(data.error || "Failed to reset password");
-
-  //     toast.success("Password reset successfully!");
-  //     router.push("/auth");
-  //   } catch (err) {
-  //     console.error(err);
-  //     toast.error("Something went wrong");
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-
   const handleResend = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
     if (!email) return toast.error("Email is required");
 
     try {
       setLoading(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/password-reset/request`, {
+
+      const recaptchaToken = await getRecaptchaV3Token("reset");
+
+      const res = await fetch(`/api/password-reset/request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          recaptchaToken,
+          recaptchaVersion: "v3",
+        }),
       });
+
       const data = await res.json();
 
-      if (!res.ok) return toast.error(data.error || "Failed to send reset link");
+      if (!res.ok) {
+        return toast.error(data?.error || "Failed to send reset link");
+      }
 
       toast.success("Password reset link sent! Check your email.");
       setEmail("");
       setTokenExpired(false);
     } catch (err) {
-      console.error(err);
+      console.error("Resend reset link failed:", err);
       toast.error("Something went wrong");
     } finally {
       setLoading(false);
@@ -185,12 +157,18 @@ export default function ResetPasswordPage() {
       <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
         {tokenValid ? (
           <>
-            <h1 className="text-2xl font-bold text-gray-800 mb-4">Reset Your Password</h1>
-            <p className="text-gray-600 mb-6">Enter your new password below to reset your account.</p>
+            <h1 className="text-2xl font-bold text-gray-800 mb-4">
+              Reset Your Password
+            </h1>
+            <p className="text-gray-600 mb-6">
+              Enter your new password below to reset your account.
+            </p>
+
             <form onSubmit={handleReset} className="space-y-4">
-              {/* New Password */}
               <div className="relative">
-                <label className="block text-gray-700 mb-1" htmlFor="password">New Password</label>
+                <label className="block text-gray-700 mb-1" htmlFor="password">
+                  New Password
+                </label>
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -207,6 +185,7 @@ export default function ResetPasswordPage() {
                 >
                   {showPassword ? "🙈" : "👁️"}
                 </span>
+
                 <PasswordStrengthBar
                   password={password}
                   minLength={6}
@@ -216,9 +195,13 @@ export default function ResetPasswordPage() {
                 />
               </div>
 
-              {/* Confirm Password */}
               <div className="relative">
-                <label className="block text-gray-700 mb-1" htmlFor="confirmPassword">Confirm Password</label>
+                <label
+                  className="block text-gray-700 mb-1"
+                  htmlFor="confirmPassword"
+                >
+                  Confirm Password
+                </label>
                 <input
                   id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
@@ -230,8 +213,12 @@ export default function ResetPasswordPage() {
                 />
                 <span
                   className="absolute right-3 top-9 cursor-pointer select-none text-xl"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  title={showConfirmPassword ? "Hide password" : "Show password"}
+                  onClick={() =>
+                    setShowConfirmPassword(!showConfirmPassword)
+                  }
+                  title={
+                    showConfirmPassword ? "Hide password" : "Show password"
+                  }
                 >
                   {showConfirmPassword ? "🙈" : "👁️"}
                 </span>
@@ -255,13 +242,19 @@ export default function ResetPasswordPage() {
           </>
         ) : (
           <>
-            <h1 className="text-2xl font-bold text-gray-800 mb-4">Password Reset Expired</h1>
+            <h1 className="text-2xl font-bold text-gray-800 mb-4">
+              Password Reset Expired
+            </h1>
             <p className="text-gray-600 mb-6">
-              Your password reset link has expired. Enter your email below to request a new one.
+              Your password reset link has expired or is invalid. Enter your
+              email below to request a new one.
             </p>
+
             <form onSubmit={handleResend} className="space-y-4">
               <div>
-                <label className="block text-gray-700 mb-1" htmlFor="email">Email</label>
+                <label className="block text-gray-700 mb-1" htmlFor="email">
+                  Email
+                </label>
                 <input
                   id="email"
                   type="email"
@@ -272,6 +265,7 @@ export default function ResetPasswordPage() {
                   required
                 />
               </div>
+
               <button
                 type="submit"
                 disabled={loading}
@@ -292,7 +286,9 @@ export default function ResetPasswordPage() {
 
         <p className="text-sm text-gray-500 mt-4">
           Remembered your password?{" "}
-          <a href="/auth" className="text-green-700 font-medium">Log in</a>
+          <a href="/auth" className="text-green-700 font-medium">
+            Log in
+          </a>
         </p>
       </div>
     </div>

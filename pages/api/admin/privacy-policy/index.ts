@@ -2,43 +2,45 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 const backendURL = process.env.BACKEND_URL || "http://localhost:4000";
 
+function getCookieHeader(req: NextApiRequest) {
+  return req.headers.cookie ?? "";
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method Not Allowed" });
   }
 
   try {
-    const backendRes = await fetch(`${backendURL}/api/password-reset/check`, {
+    const backendRes = await fetch(`${backendURL}/api/privacy-policies`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        cookie: req.headers.cookie || "",
+        cookie: getCookieHeader(req),
       },
-      body: JSON.stringify(req.body),
+      body: JSON.stringify(req.body || {}),
     });
 
     const contentType = backendRes.headers.get("content-type") || "";
+    const rawText = await backendRes.text();
 
     if (!contentType.includes("application/json")) {
-      const text = await backendRes.text();
-
       return res.status(backendRes.status).json({
         error: "Backend returned non-JSON",
-        body: text,
+        body: rawText,
       });
     }
 
-    const data = await backendRes.json();
+    const data = JSON.parse(rawText);
     return res.status(backendRes.status).json(data);
-  } catch (err: unknown) {
-    console.error("Password reset check proxy error:", err);
-
-    return res.status(500).json({
-      error: "Internal server error",
-    });
+  } catch (error: unknown) {
+    console.error("Privacy policy latest proxy error:", error);
+    const message =
+      error instanceof Error ? error.message : "Something went wrong";
+    return res.status(500).json({ error: message });
   }
 }

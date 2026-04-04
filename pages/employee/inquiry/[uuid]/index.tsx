@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../../../context/AuthContext";
+import { formatFullName } from "@/utils/utils";
 
 export default function InquiryDetail() {
   const { user, loading: authLoading } = useAuth();
@@ -38,6 +39,7 @@ export default function InquiryDetail() {
         });
 
         const result = await res.json().catch(() => null);
+        console.log("fetch inquiry result:", result);
 
         if (!res.ok) {
           throw new Error(
@@ -47,7 +49,7 @@ export default function InquiryDetail() {
           );
         }
 
-        setInquiry(result.data);
+        setInquiry(result?.inquiry || null);
       } catch (err: any) {
         console.error("Fetch inquiry error:", err);
         setError(err?.message || "Something went wrong");
@@ -101,8 +103,8 @@ export default function InquiryDetail() {
       setReplySuccess("Reply sent successfully.");
       setReplyMessage("");
 
-      if (result?.data) {
-        setInquiry(result.data);
+      if (result?.inquiry) {
+        setInquiry(result.inquiry);
       }
     } catch (err: any) {
       console.error("Send reply error:", err);
@@ -125,22 +127,31 @@ export default function InquiryDetail() {
     });
   };
 
-  const fullName =
-    [inquiry?.first_name, inquiry?.last_name].filter(Boolean).join(" ") ||
-    inquiry?.name ||
-    "Unknown";
+  const fullName = formatFullName(inquiry?.first_name, inquiry?.last_name, false) || "Unknown";
 
   const services = Array.isArray(inquiry?.services)
     ? inquiry.services
     : inquiry?.service
-    ? [inquiry.service]
-    : [];
+      ? [inquiry.service]
+      : [];
+
+  const hasEmail = Boolean(inquiry?.email);
+  const hasPhone = Boolean(inquiry?.phone);
+
+  const formattedStatus = useMemo(() => {
+    if (!inquiry?.status) return "N/A";
+    return String(inquiry.status)
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }, [inquiry?.status]);
 
   if (authLoading || pageLoading) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
-        <p className="text-gray-700 text-base font-medium ml-3">Loading ...</p>
+      <div className="flex justify-center items-center h-screen bg-gray-50">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
+          <p className="text-gray-700 text-base font-medium">Loading ...</p>
+        </div>
       </div>
     );
   }
@@ -155,9 +166,9 @@ export default function InquiryDetail() {
           <div className="mt-6 flex items-center justify-center gap-3">
             <button
               onClick={() => router.back()}
-              className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition"
+              className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 cursor-pointer hover:bg-gray-100 transition"
             >
-              Go Back
+              Back
             </button>
             <button
               onClick={() => router.reload()}
@@ -183,7 +194,7 @@ export default function InquiryDetail() {
             onClick={() => router.back()}
             className="mt-6 px-5 py-2.5 rounded-lg bg-green-700 text-white hover:bg-green-800 transition"
           >
-            Go Back
+            Back
           </button>
         </div>
       </div>
@@ -191,47 +202,75 @@ export default function InquiryDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <div>
-            <p className="text-sm font-medium text-green-700 uppercase tracking-wide">
-              Inquiry Details
-            </p>
-            <h1 className="mt-1 text-3xl font-bold text-gray-900">
-              {fullName}
-            </h1>
-            <p className="mt-2 text-sm text-gray-500">
-              Inquiry ID: {inquiry?.uuid || uuid}
-            </p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="sticky top-20 z-50 mb-8">
+          <div className="w-full rounded-2xl border border-white/10 bg-white/55 backdrop-blur-md shadow-lg px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-semibold text-green-700 uppercase tracking-[0.18em]">
+                Inquiry Details
+              </p>
+              <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-gray-900 truncate">
+                {fullName}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+                <span>Inquiry ID: {inquiry?.uuid || uuid}</span>
+                {inquiry?.status && (
+                  <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1">
+                    {formattedStatus}
+                  </span>
+                )}
+              </div>
+            </div>
 
-          <button
-            onClick={() => router.back()}
-            className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 transition"
-          >
-            ← Back
-          </button>
+            <div className="flex items-center gap-3 shrink-0">
+              {hasPhone && (
+                <a
+                  href={`tel:${inquiry.phone}`}
+                  className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-green-700 text-white font-semibold shadow-sm hover:bg-green-800 transition"
+                >
+                  Call Customer
+                </a>
+              )}
+
+              <button
+                onClick={() => router.back()}
+                className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-gray-300 bg-white/90 text-gray-700 font-medium cursor-pointer hover:bg-white transition"
+              >
+                ← Back
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 space-y-6">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Message</h2>
-              <div className="rounded-xl bg-gray-50 border border-gray-200 p-4">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Customer Message</h2>
+                <span className="text-xs text-gray-500">
+                  Received {formatDate(inquiry?.created_at)}
+                </span>
+              </div>
+
+              <div className="rounded-xl bg-gray-50 border border-gray-200 p-5">
                 <p className="text-gray-700 whitespace-pre-line leading-7">
                   {inquiry?.message || "No message provided."}
                 </p>
               </div>
             </div>
+
             {services.length > 0 && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Requested Services</h2>
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                  Requested Services
+                </h2>
+
                 <div className="flex flex-wrap gap-2">
                   {services.map((service: string, index: number) => (
                     <span
                       key={`${service}-${index}`}
-                      className="inline-flex items-center rounded-full bg-green-100 text-green-800 text-sm font-medium px-3 py-1"
+                      className="inline-flex items-center rounded-full bg-green-100 text-green-800 text-sm font-medium px-3 py-1.5"
                     >
                       {service}
                     </span>
@@ -239,17 +278,43 @@ export default function InquiryDetail() {
                 </div>
               </div>
             )}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Reply to Email</h2>
 
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">
-                    Sending reply to
-                  </p>
-                  <p className="text-sm text-gray-900 break-all">
-                    {inquiry?.email || "No email available"}
-                  </p>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-5">Reply to Customer</h2>
+
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Replying to email
+                    </p>
+                    <p className="mt-2 text-sm text-gray-900 break-all">
+                      {inquiry?.email || "No email available"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Phone contact
+                    </p>
+                    <div className="mt-2">
+                      {hasPhone ? (
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                          <p className="text-sm text-gray-900 break-all">
+                            {inquiry.phone}
+                          </p>
+                          <a
+                            href={`tel:${inquiry.phone}`}
+                            className="inline-flex items-center justify-center rounded-lg bg-white border border-green-300 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-50 transition w-full sm:w-auto"
+                          >
+                            Call now
+                          </a>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No phone number available</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div>
@@ -269,12 +334,11 @@ export default function InquiryDetail() {
                     }}
                     rows={8}
                     placeholder="Write your reply here..."
-                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 outline-none focus:border-green-700"
-                    disabled={replySending || !inquiry?.email}
+                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder-gray-400 outline-none focus:border-green-700"
+                    disabled={replySending || !hasEmail}
                   />
-                  
                 </div>
-                      
+
                 {replyError && (
                   <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {replyError}
@@ -282,16 +346,16 @@ export default function InquiryDetail() {
                 )}
 
                 {replySuccess && (
-                  <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 font-bold">
+                  <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 font-semibold">
                     {replySuccess}
                   </div>
                 )}
-                
+
                 <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     type="button"
                     onClick={handleReply}
-                    disabled={replySending || !inquiry?.email}
+                    disabled={replySending || !hasEmail}
                     className="inline-flex items-center justify-center rounded-lg bg-green-700 px-5 py-2.5 text-white font-semibold hover:cursor-pointer hover:bg-green-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {replySending ? "Sending..." : "Reply to Email"}
@@ -305,14 +369,23 @@ export default function InquiryDetail() {
                       setReplySuccess("");
                     }}
                     disabled={replySending}
-                    className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-gray-700 font-semibold hover:cursor-pointer hover:bg-black hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-gray-700 font-semibold hover:cursor-pointer hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Clear
                   </button>
+
+                  {hasPhone && (
+                    <a
+                      href={`tel:${inquiry.phone}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-green-300 bg-white px-5 py-2.5 text-green-700 font-semibold hover:bg-green-50 transition sm:ml-auto"
+                    >
+                      Call Customer
+                    </a>
+                  )}
                 </div>
               </div>
-            </div>  
-            
+            </div>
+
             {Array.isArray(inquiry?.images) && inquiry.images.length > 0 && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Images</h2>
@@ -325,7 +398,7 @@ export default function InquiryDetail() {
                       rel="noreferrer"
                       className="block group"
                     >
-                      <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
+                      <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm">
                         <img
                           src={image}
                           alt={`Inquiry image ${index + 1}`}
@@ -343,7 +416,7 @@ export default function InquiryDetail() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Customer Info</h2>
 
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     Full Name
@@ -355,24 +428,40 @@ export default function InquiryDetail() {
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     Email
                   </p>
-                  <a
-                    href={inquiry?.email ? `mailto:${inquiry.email}` : "#"}
-                    className="mt-1 block text-green-700 hover:underline break-all"
-                  >
-                    {inquiry?.email || "N/A"}
-                  </a>
+                  {hasEmail ? (
+                    <a
+                      href={`mailto:${inquiry.email}`}
+                      className="mt-1 block text-green-700 hover:underline break-all"
+                    >
+                      {inquiry.email}
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-gray-500">N/A</p>
+                  )}
                 </div>
 
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     Phone
                   </p>
-                  <a
-                    href={inquiry?.phone ? `tel:${inquiry.phone}` : "#"}
-                    className="mt-1 block text-gray-900"
-                  >
-                    {inquiry?.phone || "N/A"}
-                  </a>
+                  {hasPhone ? (
+                    <div className="mt-1 space-y-2">
+                      <a
+                        href={`tel:${inquiry.phone}`}
+                        className="block text-gray-900"
+                      >
+                        {inquiry.phone}
+                      </a>
+                      <a
+                        href={`tel:${inquiry.phone}`}
+                        className="inline-flex items-center justify-center rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 transition w-full"
+                      >
+                        Call Customer
+                      </a>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-gray-500">N/A</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -380,7 +469,7 @@ export default function InquiryDetail() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Inquiry Info</h2>
 
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     Inquiry UUID
@@ -405,8 +494,8 @@ export default function InquiryDetail() {
                       Status
                     </p>
                     <p className="mt-1">
-                      <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1">
-                        {inquiry.status}
+                      <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1.5">
+                        {formattedStatus}
                       </span>
                     </p>
                   </div>
@@ -415,25 +504,22 @@ export default function InquiryDetail() {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                Quick Actions
+              </h2>
 
               <div className="space-y-3">
-                {inquiry?.email && (
-                  <a
-                    href={`mailto:${inquiry.email}`}
-                    className="w-full inline-flex items-center justify-center rounded-lg bg-green-700 px-4 py-2.5 text-white font-medium hover:bg-green-800 transition"
-                  >
-                    Email Customer
-                  </a>
-                )}
-
-                {inquiry?.phone && (
+                {hasPhone ? (
                   <a
                     href={`tel:${inquiry.phone}`}
-                    className="w-full inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-700 font-medium hover:bg-gray-100 transition"
+                    className="w-full inline-flex items-center justify-center rounded-lg bg-green-700 px-4 py-2.5 text-white font-semibold hover:bg-green-800 transition"
                   >
                     Call Customer
                   </a>
+                ) : (
+                  <p className="text-sm text-gray-500 text-left">
+                    No phone number available
+                  </p>
                 )}
               </div>
             </div>

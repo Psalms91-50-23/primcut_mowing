@@ -18,6 +18,7 @@ export default async function handler(
 
     // ✅ GET → fetch inquiry
     if (req.method === "GET") {
+      console.log("get inquiry by uuid proxy");
       response = await fetch(backendUrl, {
         method: "GET",
         headers: {
@@ -56,7 +57,6 @@ export default async function handler(
     }
 
     const data = await response.json();
-    console.log({data}," in inquiry get and patch")
     return res.status(response.status).json(data);
   } catch (error: any) {
     console.error("Proxy /api/inquiry/[uuid] error:", error);

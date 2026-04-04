@@ -880,41 +880,51 @@ export default function CustomerDashboard() {
   return (
     <div className="min-h-screen bg-slate-50 mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Customer Dashboard</h1>
-            <p className="text-slate-600 mt-2">
-              Welcome back, <span className="font-semibold">{headerName}</span>.
-            </p>
-          </div>
-
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => loadDashboard(true)}
-              disabled={refreshing}
-              className="gap-2 hover:cursor-pointer"
-            >
-              <RefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-            <Button variant="outline" onClick={logout} className="hover:cursor-pointer">
-              Logout
-            </Button>
-          </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Customer Dashboard</h1>
+          <p className="text-slate-600 mt-2">
+            Welcome back, <span className="font-semibold">{headerName}</span>.
+          </p>
         </div>
 
-        {error ? (
-          <Card className="border-red-200 bg-red-50 mb-6">
-            <CardContent className="p-4 flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-              <div>
-                <p className="font-semibold text-red-700">Unable to load dashboard</p>
-                <p className="text-sm text-red-600 mt-1">{error}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            onClick={() => loadDashboard(true)}
+            disabled={refreshing}
+            className="gap-2 hover:cursor-pointer"
+          >
+            <RefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={logout}
+            className="hover:cursor-pointer"
+          >
+            Logout
+          </Button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+    {error ? (
+      <Card className="border-red-200 bg-red-50 mb-6">
+        <CardContent className="p-4 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+          <div>
+            <p className="font-semibold text-red-700">Unable to load dashboard</p>
+            <p className="text-sm text-red-600 mt-1">{error}</p>
+          </div>
+        </CardContent>
+      </Card>
+    ) : null}
+
 
         {customerMissing ? (
           <Card className="rounded-2xl shadow-sm border-0 mb-6">

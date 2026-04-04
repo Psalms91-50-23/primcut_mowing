@@ -10,11 +10,10 @@ export default async function handler(
 
   try {
     const backendUrl = process.env.BACKEND_URL;
-
+    console.log({backendUrl})
     if (!backendUrl) {
-      return res.status(500).json({ error: "Missing API base URL" });
+      return res.status(500).json({ error: "Missing BACKEND_URL base URL" });
     }
-    console.log({backendUrl});
     const response = await fetch(
       `${backendUrl}/api/terms-and-conditions/active`,
       {

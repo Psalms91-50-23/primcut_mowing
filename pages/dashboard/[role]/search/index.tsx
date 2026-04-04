@@ -247,6 +247,20 @@ export default function DeepSearchPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6 flex justify-center">
       <div className="w-full max-w-6xl space-y-6">
+      <div className="flex mb-4 justify-end">
+        <button
+          onClick={() => {
+            if (window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/"); // or "/dashboard" or previous safe page
+            }
+          }}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition cursor-pointer hover:bg-slate-100 active:scale-[0.98]"
+        >
+          ← Back
+        </button>
+      </div>
         <h1 className="text-3xl font-bold text-green-900">Deep Search</h1>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -464,11 +478,21 @@ export default function DeepSearchPage() {
                           {formatPersonName(customer.first_name, customer.last_name)}
                         </p>
                         <p className="text-sm text-gray-500">{customer.email || "-"}</p>
-                        <p className="text-sm text-gray-500">
-                          {customer.mobile_phone || customer.landline_phone || "-"}
-                        </p>
+                        { customer.landline_phone && (
+                          <p className="text-sm text-gray-500">
+                            {`Landline: ${customer.landline_phone}`}
+                          </p>
+                        )
+                        }
+                        { customer.mobile_phone && (
+                          <p className="text-sm text-gray-500">
+                            {`Mobile: ${customer.mobile_phone}`}
+                          </p>
+                        )
+                        }
+
                         <p className="text-sm text-gray-500">{customer.address || "-"}</p>
-                        <p className="p-1 rounded-lg bg-emerald-50 border border-emerald-500 text-xs text-emerald-700 mt-1">UUID: {customer.uuid}</p>
+                        <p className="inline-block p-1 rounded-lg bg-emerald-50 border border-emerald-500 text-xs text-emerald-700 mt-1">UUID: {customer.uuid}</p>
                       </CardContent>
                     </Card>
                   ))}
@@ -501,6 +525,19 @@ export default function DeepSearchPage() {
                           )}
                         </p>
                         <p className="text-sm text-gray-500">{quote.contact_email || "-"}</p>
+                        {quote.contact_mobile && (
+                          <p className="text-sm text-gray-500">
+                            {`Mobile: ${quote.contact_mobile}`}
+                          </p>
+                        )
+                        }
+                        {quote.contact_landline && (
+                          <p className="text-sm text-gray-500">
+                            {`Landline: ${quote.contact_landline}`}
+                          </p>
+                        )
+
+                        }
                         <p className="text-sm text-gray-500">{quote.address || "-"}</p>
                         <p className="text-sm text-gray-500">Status: {quote.status || "-"}</p>
                         <p className="text-sm text-gray-500">

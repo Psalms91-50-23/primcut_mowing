@@ -149,6 +149,25 @@ export const calculateGST = (subtotal: number) =>
 export const calculateTotal = (subtotal: number, gst: number) =>
   Number((subtotal + gst).toFixed(2));
 
+export const getRecaptchaV3Token = async (action: string) => {
+  if (typeof window === "undefined" || !window.grecaptcha) {
+    throw new Error("reCAPTCHA not loaded");
+  }
+
+  await new Promise<void>((resolve) => window.grecaptcha.ready(resolve));
+
+  const token = await window.grecaptcha.execute(
+    process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY!,
+    { action }
+  );
+
+  if (!token) {
+    throw new Error("Failed to generate reCAPTCHA token");
+  }
+
+  return token;
+};
+
 export const sendPasswordResetEmail = async ({
   email,
   recaptchaToken,

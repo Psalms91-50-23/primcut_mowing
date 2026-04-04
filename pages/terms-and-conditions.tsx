@@ -1,4 +1,7 @@
 import Head from "next/head";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import ReactMarkdown from "react-markdown";
 
 type TermsData = {
   version?: string;
@@ -12,15 +15,86 @@ type TermsData = {
 type PageProps = {
   initialTerms: TermsData | null;
   initialError: string;
+  shouldRetry: boolean;
 };
 
 export default function TermsAndConditionsPage({
   initialTerms,
   initialError,
+  shouldRetry,
 }: PageProps) {
-  const terms = initialTerms;
-  const error = initialError;
-  const loading = false;
+  const router = useRouter();
+  const [terms, setTerms] = useState<TermsData | null>(initialTerms);
+  const [error, setError] = useState(initialError);
+  const [loading, setLoading] = useState(!initialTerms && shouldRetry);
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    if (!shouldRetry || initialTerms) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 12; // about 60 seconds if interval is 5 sec
+
+    const fetchTerms = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const res = await fetch("/api/terms-and-conditions/latest");
+        const data = await res.json();
+
+        if (!res.ok) {
+          // Keep retrying only for server/unavailable type errors
+          const message = data?.error || "Failed to load terms and conditions.";
+
+          // If backend is awake and explicitly says no active terms, stop retrying
+          if (
+            message.toLowerCase().includes("no active terms") ||
+            message.toLowerCase().includes("not found")
+          ) {
+            if (!cancelled) {
+              setTerms(null);
+              setError("No active terms and conditions found.");
+              setLoading(false);
+            }
+            return;
+          }
+
+          throw new Error(message);
+        }
+
+        if (!cancelled) {
+          setTerms(data);
+          setError("");
+          setLoading(false);
+        }
+      } catch (err) {
+        attempts += 1;
+        if (!cancelled) {
+          setRetryCount(attempts);
+        }
+
+        if (attempts >= maxAttempts) {
+          if (!cancelled) {
+            setError(
+              "Unable to load terms and conditions right now. Please refresh in a moment."
+            );
+            setLoading(false);
+          }
+          return;
+        }
+
+        setTimeout(fetchTerms, 5000);
+      }
+    };
+
+    fetchTerms();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldRetry, initialTerms]);
 
   return (
     <>
@@ -34,6 +108,20 @@ export default function TermsAndConditionsPage({
 
       <main className="min-h-screen bg-slate-50 px-4 py-10">
         <div className="mx-auto max-w-4xl">
+          <div className="sticky top-20 z-50 flex justify-end bg-white/30 backdrop-blur-md px-4 py-3 mb-4 border-b border-gray-200 shadow-none">
+            <button
+              onClick={() => {
+                if (window.history.length > 1) {
+                  router.back();
+                } else {
+                  router.push("/"); // or "/dashboard" or previous safe page
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition cursor-pointer hover:bg-slate-100 active:scale-[0.98]"
+            >
+              ← Back
+            </button>
+          </div>
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-6 py-6 md:px-10">
               <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
@@ -49,8 +137,19 @@ export default function TermsAndConditionsPage({
 
             <div className="px-6 py-6 md:px-10 md:py-8">
               {loading && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  Loading terms and conditions...
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                  <div className="flex items-center gap-3">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
+                    <div>
+                      <p className="font-medium text-slate-800">
+                        Starting server and loading terms...
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        This can take a little longer if the backend is waking up.
+                        {retryCount > 0 ? ` Retry ${retryCount}...` : ""}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -138,12 +237,44 @@ export default function TermsAndConditionsPage({
                       </div>
                     </div>
                   )}
-
-                  {terms.content && (
+                  <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+                    <ReactMarkdown
+                      components={{
+                        h1: ({ children }) => (
+                          <h1 className="text-3xl font-semibold tracking-tight text-gray-900 mb-6">
+                            {children}
+                          </h1>
+                        ),
+                        h2: ({ children }) => (
+                          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-3">
+                            {children}
+                          </h2>
+                        ),
+                        p: ({ children }) => (
+                          <p className="text-gray-700 leading-7 mb-4">
+                            {children}
+                          </p>
+                        ),
+                        ul: ({ children }) => (
+                          <ul className="list-disc pl-6 mb-5 space-y-2 text-gray-700">
+                            {children}
+                          </ul>
+                        ),
+                        li: ({ children }) => (
+                          <li className="leading-7">
+                            {children}
+                          </li>
+                        ),
+                      }}
+                    >
+                      {terms.content}
+                    </ReactMarkdown>
+                  </div>
+                  {/* {terms.content && (
                     <article className="prose prose-slate max-w-none whitespace-pre-line">
                       {terms.content}
                     </article>
-                  )}
+                  )} */}
 
                   {terms.pdf_url && (
                     <div className="pt-2">
@@ -162,7 +293,7 @@ export default function TermsAndConditionsPage({
 
               {!loading && !error && !terms && (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  No terms and conditions are currently available.
+                  No active terms and conditions are currently available.
                 </div>
               )}
             </div>
@@ -181,14 +312,18 @@ export async function getServerSideProps(context: any) {
     const host = context.req.headers.host;
     const cookie = context.req.headers.cookie || "";
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     const response = await fetch(
       `${protocol}://${host}/api/terms-and-conditions/latest`,
       {
-        headers: {
-          cookie,
-        },
+        headers: { cookie },
+        signal: controller.signal,
       }
     );
+
+    clearTimeout(timeout);
 
     const data: TermsData & { error?: string } = await response.json();
 
@@ -196,8 +331,8 @@ export async function getServerSideProps(context: any) {
       return {
         props: {
           initialTerms: null,
-          initialError:
-            data?.error || "Failed to load terms and conditions.",
+          initialError: "",
+          shouldRetry: true,
         },
       };
     }
@@ -206,15 +341,17 @@ export async function getServerSideProps(context: any) {
       props: {
         initialTerms: data,
         initialError: "",
+        shouldRetry: false,
       },
     };
-  } catch (error: unknown) {
+  } catch (error) {
     console.error("Error prefetching terms and conditions:", error);
 
     return {
       props: {
         initialTerms: null,
-        initialError: "Unable to load terms and conditions at this time.",
+        initialError: "",
+        shouldRetry: true,
       },
     };
   }

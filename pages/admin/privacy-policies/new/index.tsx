@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import type { GetServerSideProps, GetServerSidePropsContext } from "next";
 
 type FormState = {
   version: string;
@@ -11,7 +12,7 @@ type FormState = {
   is_active: boolean;
 };
 
-type TermsData = {
+type PrivacyPolicyData = {
   version?: string;
   title?: string;
   content?: string;
@@ -31,7 +32,7 @@ function normalizeVersion(version: string) {
 }
 
 function getNextVersion(version?: string): string {
-  if (!version) return "v1.0";
+  if (!version) return "1.0";
 
   const trimmed = version.trim();
 
@@ -52,7 +53,7 @@ function getNextVersion(version?: string): string {
   return "";
 }
 
-export default function NewTermsPage({
+export default function NewPrivacyPolicyPage({
   initialForm,
   initialFetchError,
   existingVersions,
@@ -83,11 +84,11 @@ export default function NewTermsPage({
   const suggestNextVersion = () => {
     if (!form.version.trim()) {
       const fallback = getNextVersion(existingVersions[0] || "");
-      updateField("version", fallback || "v1.0");
+      updateField("version", fallback || "1.0");
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -114,7 +115,7 @@ export default function NewTermsPage({
         short_summary: form.short_summary.trim() || null,
       };
 
-      const res = await fetch("/api/admin/terms", {
+      const res = await fetch("/api/admin/privacy-policy", {
         method: "POST",
         credentials: "include",
         headers: {
@@ -126,10 +127,10 @@ export default function NewTermsPage({
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || "Failed to create terms and conditions");
+        throw new Error(data?.error || "Failed to create privacy policy");
       }
 
-      setSuccessMsg("Terms and conditions created successfully.");
+      setSuccessMsg("Privacy policy created successfully.");
 
       const nextSuggestedVersion = getNextVersion(trimmedVersion);
 
@@ -143,37 +144,39 @@ export default function NewTermsPage({
         is_active: false,
       });
 
-      // router.push("/admin/terms");
-    } catch (err: any) {
-      setError(err.message || "Something went wrong");
+      // router.push("/admin/privacy-policies");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Something went wrong";
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto  bg-gray-50 px-4 py-8">
-      <div className="sticky top-20 z-50 flex justify-end bg-white/30 backdrop-blur-md px-4 py-3 mb-4 border-b border-gray-200 shadow-none">
-      <button
-        onClick={() => {
-          if (window.history.length > 1) {
-            router.back();
-          } else {
-            router.push("/"); // or "/dashboard" or previous safe page
-          }
-        }}
-        className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition cursor-pointer hover:bg-slate-100 active:scale-[0.98]"
-      >
-        ← Back
-      </button>
-    </div>
-      <div className="mx-auto max-w-4xl rounded-2xl bg-white p-6 shadow">
+    <div className="min-h-screen bg-gray-50 px-4 py-8">
+         <div className="mx-auto max-w-4xl sticky top-20 z-50 flex justify-end bg-white/30 backdrop-blur-md px-4 py-3 mb-4 border-b border-gray-200 shadow-none">
+          <button
+          onClick={() => {
+            if (window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/"); // or "/dashboard" or previous safe page
+            }
+          }}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition cursor-pointer hover:bg-slate-100 active:scale-[0.98]"
+        >
+          ← Back
+        </button>
+      </div>
+      <div className="mx-auto max-w-4xl bg-white p-6 shadow mt-5 rounded-2xl">
         <h1 className="mb-2 text-2xl font-bold text-gray-900">
-          Create Terms & Conditions
+          Create Privacy Policy
         </h1>
         <p className="mb-6 text-sm text-gray-600">
-          Create a new version of your terms and conditions for quotes and
-          customers.
+          Create a new version of your privacy policy for enquiries, quotes,
+          customers, and business data handling.
         </p>
 
         {error && (
@@ -222,7 +225,7 @@ export default function NewTermsPage({
                 type="text"
                 value={form.title}
                 onChange={(e) => updateField("title", e.target.value)}
-                placeholder="Terms and Conditions"
+                placeholder="Privacy Policy"
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-black"
                 required
               />
@@ -241,7 +244,7 @@ export default function NewTermsPage({
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-black"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Optional. Leave blank to use today’s date from the backend/database.
+                Optional. Leave blank to use today’s date from the backend or database.
               </p>
             </div>
 
@@ -257,7 +260,7 @@ export default function NewTermsPage({
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-black"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Optional for now. Later this can come from uploaded/generated PDF.
+                Optional for now. Later this can come from uploaded or generated PDF.
               </p>
             </div>
           </div>
@@ -269,7 +272,7 @@ export default function NewTermsPage({
             <textarea
               value={form.short_summary}
               onChange={(e) => updateField("short_summary", e.target.value)}
-              placeholder="Short explanation shown in quote or email"
+              placeholder="Short explanation shown on forms, links, or customer pages"
               rows={3}
               className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-black"
             />
@@ -282,7 +285,7 @@ export default function NewTermsPage({
             <textarea
               value={form.content}
               onChange={(e) => updateField("content", e.target.value)}
-              placeholder="Full terms and conditions text"
+              placeholder="Full privacy policy text"
               rows={16}
               className="w-full rounded-xl border border-gray-300 px-4 py-3 font-mono text-sm outline-none focus:border-black"
               required
@@ -307,7 +310,7 @@ export default function NewTermsPage({
               disabled={loading || versionAlreadyExists}
               className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white hover:cursor-pointer disabled:opacity-60"
             >
-              {loading ? "Saving..." : "Create Terms"}
+              {loading ? "Saving..." : "Create Privacy Policy"}
             </button>
 
             <button
@@ -324,7 +327,9 @@ export default function NewTermsPage({
   );
 }
 
-export async function getServerSideProps(context: any) {
+export const getServerSideProps: GetServerSideProps<PageProps> = async (
+  context: GetServerSidePropsContext
+) => {
   const emptyForm: FormState = {
     version: "",
     title: "",
@@ -342,15 +347,15 @@ export async function getServerSideProps(context: any) {
     const cookie = context.req.headers.cookie || "";
 
     const [latestResponse, versionsResponse] = await Promise.all([
-      fetch(`${protocol}://${host}/api/terms-and-conditions/latest`, {
+      fetch(`${protocol}://${host}/api/privacy-policies/latest`, {
         headers: { cookie },
       }),
-      fetch(`${protocol}://${host}/api/admin/terms/versions`, {
+      fetch(`${protocol}://${host}/api/privacy-policies/versions`, {
         headers: { cookie },
       }),
     ]);
 
-    const latestData: TermsData | null = latestResponse.ok
+    const latestData: PrivacyPolicyData | null = latestResponse.ok
       ? await latestResponse.json()
       : null;
 
@@ -358,20 +363,21 @@ export async function getServerSideProps(context: any) {
       ? await versionsResponse.json()
       : null;
 
+     
     const existingVersions = Array.isArray(versionsData?.versions)
-      ? versionsData!.versions
+      ? versionsData.versions
       : latestData?.version
       ? [latestData.version]
       : [];
 
     const suggestedVersion =
       getNextVersion(existingVersions[0] || latestData?.version || "") || "";
-
+     console.log({ latestData, versionsData, existingVersions, suggestedVersion });
     return {
       props: {
         initialForm: {
           version: suggestedVersion,
-          title: latestData?.title || "",
+          title: latestData?.title || "Privacy Policy",
           short_summary: latestData?.short_summary || "",
           content: latestData?.content || "",
           pdf_url: "",
@@ -383,7 +389,7 @@ export async function getServerSideProps(context: any) {
       },
     };
   } catch (error) {
-    console.error("Error preloading latest terms:", error);
+    console.error("Error preloading latest privacy policy:", error);
 
     return {
       props: {
@@ -393,4 +399,4 @@ export async function getServerSideProps(context: any) {
       },
     };
   }
-}
+};

@@ -4,7 +4,7 @@ import { toast } from "react-hot-toast";
 import { useAuth, roleRedirectMap } from "../context/AuthContext";
 import { useRouter } from "next/router";
 import { useRecaptcha } from "../hooks/useRecaptcha";
-import { registerUser, loginUser, sendPasswordResetEmail } from "../utils/utils";
+import { registerUser, loginUser, sendPasswordResetEmail, getRecaptchaV3Token } from "../utils/utils";
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
@@ -44,29 +44,6 @@ export default function AuthPage() {
       router.replace(redirectUrl);
     }
   }, [user, loading, router.query.redirect, router]);
-
-  //   useEffect(() => {
-  //   if (loading) return; // wait until auth state is known
-  //   if (!loading && user) {
-  //     // User is already logged in → redirect to their dashboard
-  //     const redirectUrl = roleRedirectMap[user.role] || "/";
-  //     router.replace(redirectUrl);
-  //   }
-  // }, [user, loading, router]);
-  // -----------------------------
-  // reCAPTCHA helpers
-  // -----------------------------
-  const getRecaptchaV3Token = async (action: string) => {
-    if (!window.grecaptcha) {
-      toast.error("reCAPTCHA not loaded");
-      return null;
-    }
-    await new Promise<void>((resolve) => window.grecaptcha.ready(resolve));
-    return await window.grecaptcha.execute(
-      process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY!,
-      { action }
-    );
-  };
 
   const handleV2Challenge = async (): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -126,6 +103,7 @@ export default function AuthPage() {
   // -----------------------------
   // LOGIN WITH V3 + V2 FALLBACK
   // -----------------------------
+  
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -134,21 +112,17 @@ export default function AuthPage() {
     try {
       await loadV3();
       const token = await getRecaptchaV3Token("login");
-
+      
       const loggedInUser = await login(email, loginPassword, token);
 
       if (!loggedInUser) {
         toast.error("Could not fetch user data.");
         return;
       }
-      // const redirectUrl =
-      //   typeof router.query.redirect === "string" && router.query.redirect.length > 0
-      //     ? router.query.redirect
-      //     : roleRedirectMap[loggedInUser.role] || "/";
+
       const redirectTo = getRedirectUrl(loggedInUser);
       toast.success("Logged in successfully!");
       router.replace(redirectTo);
-      // router.replace(redirectUrl);
     } catch (err: any) {
       // -----------------------------
       // 🔥 V2 FALLBACK
@@ -167,14 +141,7 @@ export default function AuthPage() {
           }
 
           toast.success("Logged in successfully!");
-          // const redirectUrl =
-          //   typeof router.query.redirect === "string" &&
-          //   router.query.redirect.length > 0
-          //     ? router.query.redirect
-          //     : roleRedirectMap[loggedInUser.role] || "/";
-
-          // router.replace(redirectUrl);
-           router.replace(getRedirectUrl(loggedInUser));
+          router.replace(getRedirectUrl(loggedInUser));
         } catch {
           toast.error("Security verification failed.");
         }
@@ -266,52 +233,62 @@ export default function AuthPage() {
   // -----------------------------
   // RESET WITH V3 + V2 FALLBACK
   // -----------------------------
+ 
   const handleReset = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsResetting(true);
+  e.preventDefault();
 
-    try {
-      await loadV3();
-      const token = await getRecaptchaV3Token("reset");
+  if (!email) {
+    toast.error("Email is required");
+    return;
+  }
 
-      await sendPasswordResetEmail({
-        email,
-        recaptchaToken: token,
-        recaptchaVersion: "v3",
-      });
+  setIsResetting(true);
 
-      toast.success("Password reset email sent (if account exists).");
-      setEmail("");
-      setMode("login");
-    } catch (err: any) {
-      // 🔥 V2 FALLBACK
-      if (err?.message === "RECAPTCHA_LOW_SCORE") {
-        try {
-          toast("Security check required...");
-          setShowV2(true);
-          await loadV2();
-          const v2Token = await handleV2Challenge();
-          
-          await sendPasswordResetEmail({
-            email,
-            recaptchaToken: v2Token,
-            recaptchaVersion: "v2",
-          });
+  try {
+    await loadV3();
+    const token = await getRecaptchaV3Token("reset_request");
 
-          toast.success("Password reset email sent (if account exists).");
-          setEmail("");
-          setMode("login");
-        } catch {
-          toast.error("Security verification failed.");
-        }
-      } else {
-        toast.error(err instanceof Error ? err.message : "Reset failed");
+    await sendPasswordResetEmail({
+      email,
+      recaptchaToken: token,
+      recaptchaVersion: "v3",
+    });
+
+    setEmail("");
+    toast.success("Password reset email sent (if account exists).");
+    setMode("login");
+  } catch (err: any) {
+    if (err?.message === "RECAPTCHA_LOW_SCORE") {
+      try {
+        toast("Security check required...");
+        setShowV2(true);
+        await loadV2();
+        const v2Token = await handleV2Challenge();
+
+        await sendPasswordResetEmail({
+          email,
+          recaptchaToken: v2Token,
+          recaptchaVersion: "v2",
+        });
+
+        setEmail("");
+        toast.success("Password reset email sent (if account exists).");
+        setMode("login");
+      } catch {
+        toast.error("Security verification failed.");
       }
-    } finally {
-      if (showV2) setShowV2(false);
-      setIsResetting(false);
+    } else {
+      if (err?.message) {
+        toast.error(err.message);
+      } else {
+        toast.error("Failed to send reset email");
+      }
     }
-  };
+  } finally {
+    setShowV2(false);
+    setIsResetting(false);
+  }
+};
 
   if (loading) {
   return (

@@ -6,12 +6,11 @@ import {
   Users,
   FileText,
   Search,
-  Send,
-  Settings,
-  AlertTriangle,
   Clock3,
   CalendarDays,
   ArrowRight,
+  AlertTriangle,
+  MessageSquareMore,
 } from "lucide-react";
 import { useAuth, roleRedirectMap } from "../../../context/AuthContext";
 import { useRouter } from "next/router";
@@ -91,6 +90,27 @@ type DashboardStats = {
   customers: number;
   quotesSent: number;
   upcomingJobs: number;
+};
+
+type Inquiry = {
+  uuid: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+  address?: string | null;
+  message?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+};
+
+type InquiriesResponse = {
+  inquiries?: Inquiry[];
+  total?: number;
+  page?: number;
+  totalPages?: number;
+  error?: string;
 };
 
 const DASHBOARD_JOB_LIMIT = 10;
@@ -343,6 +363,12 @@ export default function OwnerDashboard() {
   const [next7JobsPage, setNext7JobsPage] = useState(1);
   const [next7JobsTotalPages, setNext7JobsTotalPages] = useState(1);
 
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [inquiriesLoading, setInquiriesLoading] = useState(false);
+  const [inquiriesPage, setInquiriesPage] = useState(1);
+  const [inquiriesTotal, setInquiriesTotal] = useState(0);
+  const [inquiriesTotalPages, setInquiriesTotalPages] = useState(1);
+
   const dashboardRole = getDashboardRole(user?.role);
   const UUID_REGEX = /^[a-zA-Z0-9]{9}$/;
 
@@ -352,6 +378,14 @@ export default function OwnerDashboard() {
 
   const handleCreateTerms = () => {
     router.push("/admin/terms/new");
+  };
+
+  const handleReadPrivacy = () => {
+    router.push("/privacy-policies");
+  };
+
+  const handleCreatePrivacy = () => {
+    router.push("/admin/privacy-policies/new");
   };
 
   const handleGlobalSearch = () => {
@@ -392,8 +426,30 @@ export default function OwnerDashboard() {
     return { label: status || "Unknown", className: "bg-gray-100 text-gray-900" };
   };
 
+  const getInquiryStatusBadge = (status?: string | null) => {
+    const s = (status || "").toLowerCase();
+
+    if (s === "new") {
+      return { label: "New", className: "bg-blue-100 text-blue-900" };
+    }
+
+    if (s === "in_progress" || s === "in-progress") {
+      return { label: "In Progress", className: "bg-yellow-100 text-yellow-900" };
+    }
+
+    if (s === "resolved" || s === "completed") {
+      return { label: "Resolved", className: "bg-emerald-100 text-emerald-900" };
+    }
+
+    return {
+      label: status || "Inquiry",
+      className: "bg-gray-100 text-gray-900",
+    };
+  };
+
   const getQuoteURL = (quoteUUID: string) => `/dashboard/${dashboardRole}/quotes/${quoteUUID}`;
   const getJobURL = (jobUUID: string) => `/${dashboardRole}/jobs/uuid/${jobUUID}`;
+  const getInquiryURL = (inquiryUUID: string) => `/employee/inquiry/${inquiryUUID}`;
 
   const handleQuickFind = async () => {
     const uuid = quickFindValue.trim();
@@ -555,7 +611,6 @@ export default function OwnerDashboard() {
     append?: boolean;
     limit?: number;
   }) => {
-
     const setLoadingForRange = (value: boolean) => {
       if (range === "attention") setAttentionJobsLoading(value);
       if (range === "today") setTodayJobsLoading(value);
@@ -567,7 +622,6 @@ export default function OwnerDashboard() {
 
     try {
       const res = await fetch(`/api/dashboard?range=${range}&limit=${limit}&page=${page}`);
-      // const res = await fetch(`/api/jobs/dashboard?range=${range}&limit=${limit}&page=${page}`);
       if (!res.ok) throw new Error(`Failed to fetch ${range} jobs`);
 
       const data: UpcomingJobsResponse = await res.json();
@@ -619,6 +673,46 @@ export default function OwnerDashboard() {
       }
     } finally {
       setLoadingForRange(false);
+    }
+  };
+
+  const fetchInquiries = async ({
+    pageNumber = 1,
+    inquiryLimit = 5,
+    append = false,
+  }: {
+    pageNumber?: number;
+    inquiryLimit?: number;
+    append?: boolean;
+  }) => {
+    if (inquiriesLoading) return;
+
+    setInquiriesLoading(true);
+
+    try {
+      const res = await fetch(`/api/inquiries?limit=${inquiryLimit}&page=${pageNumber}`);
+      const data: InquiriesResponse = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to fetch inquiries");
+      }
+
+      const nextItems = data.inquiries || [];
+
+      setInquiries((prev) => (append ? [...prev, ...nextItems] : nextItems));
+      setInquiriesPage(Number(data.page || pageNumber));
+      setInquiriesTotal(Number(data.total || nextItems.length));
+      setInquiriesTotalPages(Number(data.totalPages || 1));
+    } catch (err) {
+      console.error(err);
+      if (!append) {
+        setInquiries([]);
+        setInquiriesPage(1);
+        setInquiriesTotal(0);
+        setInquiriesTotalPages(1);
+      }
+    } finally {
+      setInquiriesLoading(false);
     }
   };
 
@@ -679,6 +773,7 @@ export default function OwnerDashboard() {
           fetchDashboardJobSection({ range: "today", limit: DASHBOARD_JOB_LIMIT }),
           fetchDashboardJobSection({ range: "tomorrow", limit: DASHBOARD_JOB_LIMIT }),
           fetchDashboardJobSection({ range: "next7days", limit: DASHBOARD_JOB_LIMIT }),
+          fetchInquiries({ pageNumber: 1, inquiryLimit: 5 }),
         ]);
       } finally {
         if (!cancelled) setLoading(false);
@@ -702,18 +797,19 @@ export default function OwnerDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="sticky top-0 z-20 border-b bg-white/80 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold text-green-900 truncate">
-                Owner Dashboard
-              </h1>
-              <p className="text-sm text-gray-600 truncate">
-                Welcome back {fullName} <span className="wave text-2xl">👋</span>
-              </p>
-            </div>
+      <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-green-900">
+              Owner Dashboard
+            </h1>
 
+            <p className="text-sm text-gray-600">
+              Welcome back {fullName} <span className="wave text-2xl">👋</span>
+            </p>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <Button
                 variant="outline"
@@ -723,27 +819,58 @@ export default function OwnerDashboard() {
                 <Search className="h-4 w-4 mr-2" />
                 Deep Search
               </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full sm:w-auto cursor-pointer hover:bg-green-900 hover:text-white"
-                onClick={handleReadTerms}
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Read Terms & Conditions
-              </Button>
-
-              <Button
-                type="button"
-                className="w-full sm:w-auto bg-emerald-600 text-white hover:bg-emerald-800 cursor-pointer"
-                onClick={handleCreateTerms}
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Create New Terms & Conditions
-              </Button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-center sm:justify-start cursor-pointer hover:bg-green-800 hover:text-white min-h-[48px] whitespace-normal text-left"
+            onClick={handleReadTerms}
+          >
+            <FileText className="h-4 w-4 mr-2 shrink-0" />
+            <span className="truncate sm:whitespace-normal">
+              Read Terms & Conditions
+            </span>
+          </Button>
+
+          <Button
+            type="button"
+            className="w-full justify-center sm:justify-start bg-emerald-600 text-white hover:bg-emerald-800 cursor-pointer min-h-[48px] whitespace-normal text-left"
+            onClick={handleCreateTerms}
+          >
+            <FileText className="h-4 w-4 mr-2 shrink-0" />
+            <span className="truncate sm:whitespace-normal">
+              Create New Terms & Conditions
+            </span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-center sm:justify-start cursor-pointer hover:bg-green-500 hover:text-white min-h-[48px] whitespace-normal text-left"
+            onClick={handleReadPrivacy}
+          >
+            <FileText className="h-4 w-4 mr-2 shrink-0" />
+            <span className="truncate sm:whitespace-normal">
+              Read Privacy Policy
+            </span>
+          </Button>
+
+          <Button
+            type="button"
+            className="w-full justify-center sm:justify-start bg-emerald-400 text-white hover:bg-emerald-600 cursor-pointer min-h-[48px] whitespace-normal text-left"
+            onClick={handleCreatePrivacy}
+          >
+            <FileText className="h-4 w-4 mr-2 shrink-0" />
+            <span className="truncate sm:whitespace-normal">
+              Create New Privacy Policy
+            </span>
+          </Button>
         </div>
       </div>
 
@@ -788,19 +915,20 @@ export default function OwnerDashboard() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2">
+              <div className="grid gap-2 grid-cols-1 sm:grid-cols-[auto_auto_1fr]">
                 <input
                   type="text"
                   placeholder="Search customer, quote, or job..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   onKeyDown={handleGlobalSearchKeyDown}
-                  className="border px-3 py-2 rounded w-full"
+                  className="border px-3 py-2 rounded w-full order-1 sm:order-3"
                 />
 
                 <Button
                   onClick={handleGlobalSearch}
-                  className="cursor-pointer bg-green-600 text-white hover:bg-green-900 hover:text-white"
+                  size="lg"
+                  className="bg-green-600 text-white cursor-pointer hover:bg-green-800 order-2 sm:order-1"
                 >
                   Search
                 </Button>
@@ -808,7 +936,8 @@ export default function OwnerDashboard() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="cursor-pointer"
+                  size="lg"
+                  className="cursor-pointer order-3 sm:order-2"
                   onClick={() => setSearchValue("")}
                 >
                   Clear
@@ -818,7 +947,7 @@ export default function OwnerDashboard() {
           </Card>
         </section>
 
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <section className="grid grid-cols-1 lg:grid-cols-1 gap-6 mb-8">
           <Card className="rounded-2xl shadow-sm lg:col-span-2">
             <CardContent className="p-5">
               <div className="flex items-center justify-between gap-3 mb-4">
@@ -882,43 +1011,6 @@ export default function OwnerDashboard() {
                   <p className="text-sm text-red-600">{quickFindError}</p>
                 )}
                 <QuickFindResult type={quickFindType} result={quickFindPreview} />
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="mb-8">
-          <Card className="rounded-2xl shadow-sm">
-            <CardContent className="p-5">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <FileText className="h-5 w-5 text-green-700" />
-                    <h2 className="text-xl font-semibold text-gray-900">Terms & Conditions</h2>
-                  </div>
-                  <p className="text-sm text-gray-500">
-                    Create a new version of your terms or open the current terms to review.
-                  </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="cursor-pointer"
-                    onClick={handleReadTerms}
-                  >
-                    Read Terms & Conditions
-                  </Button>
-
-                  <Button
-                    type="button"
-                    className="bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
-                    onClick={handleCreateTerms}
-                  >
-                    Create New Terms & Conditions
-                  </Button>
-                </div>
               </div>
             </CardContent>
           </Card>
@@ -1032,7 +1124,7 @@ export default function OwnerDashboard() {
                 <Button
                   variant="outline"
                   className="cursor-pointer"
-                  onClick={() => router.push("/dashboard/owner/jobs")}
+                  onClick={() => router.push("/employee/jobs/all")}
                 >
                   Open jobs page
                   <ArrowRight className="h-4 w-4 ml-2" />
@@ -1092,8 +1184,8 @@ export default function OwnerDashboard() {
                         >
                           <CardContent className="p-4">
                             <div className="flex items-start justify-between gap-3">
-                              <div className="pt-1">
-                                <p className="font-semibold">
+                              <div className="pt-1 min-w-0">
+                                <p className="font-semibold truncate">
                                   {quote.contact_first_name} {quote.contact_last_name}
                                 </p>
                                 <p className="text-gray-500">Total: ${quote.total_amount}</p>
@@ -1151,8 +1243,8 @@ export default function OwnerDashboard() {
                         >
                           <CardContent className="p-4">
                             <div className="flex items-start justify-between gap-3">
-                              <div className="pt-1">
-                                <p className="font-semibold">
+                              <div className="pt-1 min-w-0">
+                                <p className="font-semibold truncate">
                                   {quote.contact_first_name} {quote.contact_last_name}
                                 </p>
                                 <p className="text-gray-500">Total: ${quote.total_amount}</p>
@@ -1191,6 +1283,112 @@ export default function OwnerDashboard() {
 
             <Card className="rounded-2xl shadow-sm">
               <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <div className="flex items-center gap-2">
+                    <MessageSquareMore className="h-5 w-5 text-green-700" />
+                    <h2 className="text-lg font-semibold">Inquiries</h2>
+                  </div>
+
+                  <span className="text-xs text-gray-500">
+                    {inquiriesTotal} total
+                  </span>
+                </div>
+
+                <div className="max-h-72 overflow-auto space-y-2 pb-3 pr-1">
+                  {inquiriesLoading && inquiries.length === 0 ? (
+                    <p className="text-sm text-gray-500">Loading inquiries...</p>
+                  ) : inquiries.length === 0 ? (
+                    <p>No inquiries</p>
+                  ) : (
+                    inquiries.map((inquiry) => {
+                      const badge = getInquiryStatusBadge(inquiry.status);
+                      const fullInquiryName =
+                        formatFullName(
+                          inquiry.first_name ?? undefined,
+                          inquiry.last_name ?? undefined,
+                          true
+                        ) || "Unnamed inquiry";
+
+                      return (
+                        <Card
+                          key={inquiry.uuid}
+                          className="cursor-pointer hover:shadow-lg transition"
+                          onClick={() => router.push(getInquiryURL(inquiry.uuid))}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-gray-900 truncate">
+                                  {fullInquiryName}
+                                </p>
+
+                                {inquiry.address && (
+                                  <p className="text-sm text-gray-500 truncate">
+                                    {inquiry.address}
+                                  </p>
+                                )}
+
+                                {(inquiry.mobile || inquiry.phone || inquiry.email) && (
+                                  <p className="text-xs text-gray-400 truncate mt-1">
+                                    {inquiry.mobile || inquiry.phone || inquiry.email}
+                                  </p>
+                                )}
+
+                                {inquiry.message && (
+                                  <p className="text-sm text-gray-500 line-clamp-2 mt-1">
+                                    {inquiry.message}
+                                  </p>
+                                )}
+
+                                <p className="text-xs text-gray-400 mt-2">
+                                  Created: {formatDateTime(inquiry.created_at)}
+                                </p>
+                              </div>
+
+                              <div className="shrink-0">
+                                <span
+                                  className={`text-xs font-semibold px-2 py-1 rounded ${badge.className}`}
+                                >
+                                  {badge.label}
+                                </span>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
+
+                  {!inquiriesLoading && inquiriesPage < inquiriesTotalPages && (
+                    <Button
+                      variant="outline"
+                      className="w-full cursor-pointer"
+                      onClick={() =>
+                        fetchInquiries({
+                          pageNumber: inquiriesPage + 1,
+                          inquiryLimit: 5,
+                          append: true,
+                        })
+                      }
+                    >
+                      Load more inquiries
+                    </Button>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                    type="button"
+                    onClick={() => router.push("/employee/inquiries")}
+                  >
+                    View all inquiries
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl shadow-sm">
+              <CardContent className="p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold">Expired Quotes</h2>
                   <span className="text-xs text-gray-500">Follow Up</span>
@@ -1210,8 +1408,8 @@ export default function OwnerDashboard() {
                         >
                           <CardContent className="p-4">
                             <div className="flex items-start justify-between gap-3">
-                              <div className="pt-1">
-                                <p className="font-semibold">
+                              <div className="pt-1 min-w-0">
+                                <p className="font-semibold truncate">
                                   {quote.contact_first_name} {quote.contact_last_name}
                                 </p>
                                 <p className="text-gray-500">Total: ${quote.total_amount}</p>
