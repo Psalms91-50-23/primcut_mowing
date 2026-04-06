@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import PasswordStrengthBar from "react-password-strength-bar";
-import { getRecaptchaV3Token } from "../utils/utils";
+import { getRecaptchaV3Token, formatMoney  } from "../utils/utils";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -227,7 +227,7 @@ export default function ResetPasswordPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-green-700 hover:bg-green-800 text-white py-2 px-4 rounded-md font-semibold disabled:opacity-50"
+                className="w-full bg-green-700 hover:bg-green-800 text-white py-2 px-4 rounded-md font-semibold disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
                   <div className="flex items-center justify-center">

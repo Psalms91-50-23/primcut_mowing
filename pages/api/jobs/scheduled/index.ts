@@ -7,6 +7,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const backendUrl = process.env.BACKEND_URL;
+
     if (!backendUrl) {
       return res.status(500).json({ message: "BACKEND_URL not defined" });
     }
@@ -21,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     });
 
-    const url = `${backendUrl.replace(/\/$/, "")}/api/jobs/all${
+    const url = `${backendUrl.replace(/\/$/, "")}/api/jobs/scheduled${
       qs.toString() ? `?${qs.toString()}` : ""
     }`;
 
@@ -33,6 +34,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         Accept: "application/json",
         "user-agent": String(req.headers["user-agent"] || ""),
         ...(req.headers.cookie ? { cookie: String(req.headers.cookie) } : {}),
+        ...(req.headers.authorization
+          ? { authorization: String(req.headers.authorization) }
+          : {}),
       },
     });
 
@@ -54,7 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.send(text);
   } catch (err: any) {
-    console.error("Jobs proxy error:", err?.message || err);
+    console.error("Scheduled jobs proxy error:", err?.message || err);
     return res.status(500).json({ message: "Proxy error" });
   }
 }

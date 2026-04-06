@@ -1040,7 +1040,8 @@ export default function OwnerDashboard() {
                     <Button
                       variant="outline"
                       className="cursor-pointer"
-                      onClick={() => router.push("/dashboard/owner/jobs?filter=attention")}
+                      onClick={() => router.push(`/employee/jobs/all`)}
+                      // onClick={() => router.push(`/employee/jobs?filter=attention`)}
                     >
                       View all
                     </Button>

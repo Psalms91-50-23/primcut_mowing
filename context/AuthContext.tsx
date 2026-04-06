@@ -153,29 +153,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return roles.includes(role);
   };
 
+  // useEffect(() => {
+  //   const initAuth = async () => {
+  //     setLoading(true);
+
+  //     try {
+  //       const res = await fetch(`/api/users/auth/check`, {
+  //         credentials: "include",
+  //       });
+
+  //       const data = await res.json();
+
+  //       if (data?.loggedIn) {
+  //         await fetchUser();
+  //       } else {
+  //         setUser(null);
+  //         setRole(null);
+  //       }
+  //     } catch (err) {
+  //       setUser(null);
+  //       setRole(null);
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
+
+  //   initAuth();
+  // }, []);
+
   useEffect(() => {
     const initAuth = async () => {
-      setLoading(true);
-
-      try {
-        const res = await fetch(`/api/users/auth/check`, {
-          credentials: "include",
-        });
-
-        const data = await res.json();
-
-        if (data?.loggedIn) {
-          await fetchUser();
-        } else {
-          setUser(null);
-          setRole(null);
-        }
-      } catch (err) {
-        setUser(null);
-        setRole(null);
-      } finally {
-        setLoading(false);
-      }
+      await fetchUser();
     };
 
     initAuth();

@@ -34,6 +34,8 @@ interface Quote {
   quote_sent_at?: string;
   message?: string | null;
   employer_message?: string | null;
+  has_urgent_fee?: boolean;
+  urgent_fee_amount?: number | null;
 }
 
 const GST_RATE = 0.15;
@@ -117,6 +119,40 @@ const formatDateTime = (value?: string | null) => {
   }).format(date);
 };
 
+const getServiceName = (service?: Partial<Service>) => {
+  return `${service?.label || ""} ${service?.value || ""}`.trim().toLowerCase();
+};
+
+const isUrgentFeeService = (service?: Partial<Service>) => {
+  const name = getServiceName(service);
+  return (
+    name.includes("urgent fee") ||
+    name.includes("urgent request fee") ||
+    name.includes("priority fee") ||
+    name.includes("call-out fee") ||
+    name === "urgent" ||
+    name.includes("urgent")
+  );
+};
+
+const getUrgentFeeFromServices = (services: Service[] = []) => {
+  return services.reduce((sum, service) => {
+    if (!isUrgentFeeService(service)) return sum;
+    const quantity = Number(service.quantity) || 0;
+    const unitPrice = Number(service.unit_price) || 0;
+    return sum + quantity * unitPrice;
+  }, 0);
+};
+
+const getNonUrgentServicesSubtotal = (services: Service[] = []) => {
+  return services.reduce((sum, service) => {
+    if (isUrgentFeeService(service)) return sum;
+    const quantity = Number(service.quantity) || 0;
+    const unitPrice = Number(service.unit_price) || 0;
+    return sum + quantity * unitPrice;
+  }, 0);
+};
+
 export default function QuotePage() {
   const router = useRouter();
   const { uuid } = router.query;
@@ -175,6 +211,8 @@ export default function QuotePage() {
           employer_message: loadedQuote.employer_message ?? "",
           services: Array.isArray(loadedQuote.services) ? loadedQuote.services : [],
           images: Array.isArray(loadedQuote.images) ? loadedQuote.images : [],
+          has_urgent_fee: Boolean(loadedQuote.has_urgent_fee),
+          urgent_fee_amount: Number(loadedQuote.urgent_fee_amount) || 0,
         };
 
         setQuote(normalizedQuote);
@@ -235,18 +273,54 @@ export default function QuotePage() {
     }
   }, [canToggleStatus, defaultStatus, quote]);
 
-  const calculateTotals = (services: Service[]) => {
-    const subtotal = services.reduce((sum, s) => {
-      const quantity = Number(s.quantity) || 0;
-      const unitPrice = Number(s.unit_price) || 0;
-      return sum + quantity * unitPrice;
-    }, 0);
+  const calculateTotals = (
+    services: Service[],
+    options?: {
+      hasUrgentFee?: boolean;
+      urgentFeeAmount?: number | null;
+    }
+  ) => {
+    const servicesSubtotal = getNonUrgentServicesSubtotal(services);
+    const urgentFeeInServices = getUrgentFeeFromServices(services);
 
+    const separateUrgentFee =
+      urgentFeeInServices > 0
+        ? 0
+        : options?.hasUrgentFee
+        ? Number(options?.urgentFeeAmount) || 0
+        : 0;
+
+    const subtotal = servicesSubtotal + urgentFeeInServices + separateUrgentFee;
     const gst = subtotal * GST_RATE;
     const total = subtotal + gst;
 
-    return { subtotal, gst, total };
+    return {
+      servicesSubtotal,
+      urgentFeeInServices,
+      separateUrgentFee,
+      subtotal,
+      gst,
+      total,
+    };
   };
+
+  const totalsBreakdown = useMemo(() => {
+    if (!quote) {
+      return {
+        servicesSubtotal: 0,
+        urgentFeeInServices: 0,
+        separateUrgentFee: 0,
+        subtotal: 0,
+        gst: 0,
+        total: 0,
+      };
+    }
+
+    return calculateTotals(quote.services || [], {
+      hasUrgentFee: quote.has_urgent_fee,
+      urgentFeeAmount: quote.urgent_fee_amount,
+    });
+  }, [quote]);
 
   const handleServiceChange = (
     index: number,
@@ -269,7 +343,10 @@ export default function QuotePage() {
     currentService[field] = value;
     updatedServices[index] = currentService;
 
-    const { subtotal, gst, total } = calculateTotals(updatedServices);
+    const { subtotal, gst, total } = calculateTotals(updatedServices, {
+      hasUrgentFee: quote.has_urgent_fee,
+      urgentFeeAmount: quote.urgent_fee_amount,
+    });
 
     setQuote({
       ...quote,
@@ -338,6 +415,11 @@ export default function QuotePage() {
         ? new Date(quote.expiry_end)
         : null;
 
+      const recalculatedTotals = calculateTotals(quote.services || [], {
+        hasUrgentFee: quote.has_urgent_fee,
+        urgentFeeAmount: quote.urgent_fee_amount,
+      });
+
       const updatedQuote = {
         ...quote,
         contact_mobile: buildMobileForSave(),
@@ -345,6 +427,9 @@ export default function QuotePage() {
         preferred_contact_method: quote.preferred_contact_method || null,
         expiry_end: expiryEndDate ? expiryEndDate.toISOString() : null,
         employer_message: quote.employer_message ?? "",
+        subtotal_amount: recalculatedTotals.subtotal,
+        gst_amount: recalculatedTotals.gst,
+        total_amount: recalculatedTotals.total,
       };
 
       const res = await fetch(`/api/quotes/${uuid}?action=update`, {
@@ -368,6 +453,8 @@ export default function QuotePage() {
         employer_message: savedQuote.employer_message ?? quote.employer_message ?? "",
         services: Array.isArray(savedQuote.services) ? savedQuote.services : [],
         images: Array.isArray(savedQuote.images) ? savedQuote.images : [],
+        has_urgent_fee: Boolean(savedQuote.has_urgent_fee),
+        urgent_fee_amount: Number(savedQuote.urgent_fee_amount) || 0,
       };
 
       setQuote(normalizedQuote);
@@ -418,6 +505,11 @@ export default function QuotePage() {
     setSaving(true);
 
     try {
+      const recalculatedTotals = calculateTotals(quote.services || [], {
+        hasUrgentFee: quote.has_urgent_fee,
+        urgentFeeAmount: quote.urgent_fee_amount,
+      });
+
       const updatedQuote = {
         ...quote,
         contact_mobile: buildMobileForSave(),
@@ -428,6 +520,9 @@ export default function QuotePage() {
         employer_message: quote.employer_message ?? "",
         is_quote_sent_to_client: true,
         quote_sent_at: new Date().toISOString(),
+        subtotal_amount: recalculatedTotals.subtotal,
+        gst_amount: recalculatedTotals.gst,
+        total_amount: recalculatedTotals.total,
       };
 
       const res = await fetch(`/api/quotes/${uuid}?action=send`, {
@@ -451,6 +546,8 @@ export default function QuotePage() {
         employer_message: sentQuote.employer_message ?? quote.employer_message ?? "",
         services: Array.isArray(sentQuote.services) ? sentQuote.services : [],
         images: Array.isArray(sentQuote.images) ? sentQuote.images : [],
+        has_urgent_fee: Boolean(sentQuote.has_urgent_fee),
+        urgent_fee_amount: Number(sentQuote.urgent_fee_amount) || 0,
       };
 
       setQuote(normalizedQuote);
@@ -702,14 +799,22 @@ export default function QuotePage() {
                   s.unit_price === undefined ||
                   Number(s.unit_price) <= 0;
 
+                const isUrgentRow = isUrgentFeeService(s);
+
                 return (
                   <div
                     key={i}
                     className={`border rounded-lg shadow-sm overflow-hidden ${
                       missingPrice ? "border-red-400" : ""
-                    }`}
+                    } ${isUrgentRow ? "ring-1 ring-amber-300" : ""}`}
                   >
-                    <div className="flex items-center justify-between bg-gradient-to-r from-green-200 to-green-400 text-green-900 font-semibold px-4 py-2 gap-2">
+                    <div
+                      className={`flex items-center justify-between font-semibold px-4 py-2 gap-2 ${
+                        isUrgentRow
+                          ? "bg-gradient-to-r from-amber-100 to-amber-300 text-amber-900"
+                          : "bg-gradient-to-r from-green-200 to-green-400 text-green-900"
+                      }`}
+                    >
                       <p>{s.label}</p>
 
                       {quote.images?.[i] && (
@@ -758,7 +863,7 @@ export default function QuotePage() {
                       </div>
 
                       <div className="flex justify-between font-semibold">
-                        <span>Subtotal:</span>
+                        <span>{isUrgentRow ? "Urgent Fee:" : "Subtotal:"}</span>
                         <span>${(Number(s.quantity) * Number(s.unit_price)).toFixed(2)}</span>
                       </div>
                     </div>
@@ -786,9 +891,25 @@ export default function QuotePage() {
                       s.unit_price === undefined ||
                       Number(s.unit_price) <= 0;
 
+                    const isUrgentRow = isUrgentFeeService(s);
+
                     return (
-                      <tr key={i} className={`hover:bg-gray-50 ${missingPrice ? "bg-red-50" : ""}`}>
-                        <td className="border px-4 py-2 text-left">{s.label}</td>
+                      <tr
+                        key={i}
+                        className={`hover:bg-gray-50 ${
+                          missingPrice ? "bg-red-50" : ""
+                        } ${isUrgentRow ? "bg-amber-50" : ""}`}
+                      >
+                        <td className="border px-4 py-2 text-left">
+                          <div className="flex items-center gap-2">
+                            <span>{s.label}</span>
+                            {isUrgentRow && (
+                              <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                                Urgent Fee
+                              </span>
+                            )}
+                          </div>
+                        </td>
 
                         <td className="border px-4 py-2 text-left">
                           {quote.images?.[i] ? (
@@ -847,18 +968,32 @@ export default function QuotePage() {
           </section>
 
           <section className="mb-6 flex flex-col sm:flex-row justify-end gap-4">
-            <div className="w-full sm:w-64 border rounded-lg p-4 bg-white shadow-sm space-y-2">
+            <div className="w-full sm:w-72 border rounded-lg p-4 bg-white shadow-sm space-y-2">
               <div className="flex justify-between font-semibold">
-                <span>Subtotal:</span>
-                <span>${(quote.subtotal_amount ?? 0).toFixed(2)}</span>
+                <span>Services:</span>
+                <span>${totalsBreakdown.servicesSubtotal.toFixed(2)}</span>
               </div>
+
+              {totalsBreakdown.separateUrgentFee > 0 && (
+                <div className="flex justify-between font-semibold text-amber-700">
+                  <span>Urgent Fee:</span>
+                  <span>${totalsBreakdown.separateUrgentFee.toFixed(2)}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between font-semibold border-t pt-2">
+                <span>Subtotal:</span>
+                <span>${totalsBreakdown.subtotal.toFixed(2)}</span>
+              </div>
+
               <div className="flex justify-between font-semibold">
                 <span>GST (15%):</span>
-                <span>${(quote.gst_amount ?? 0).toFixed(2)}</span>
+                <span>${totalsBreakdown.gst.toFixed(2)}</span>
               </div>
+
               <div className="flex justify-between font-bold text-green-900 text-lg">
                 <span>Total:</span>
-                <span>${(quote.total_amount ?? 0).toFixed(2)}</span>
+                <span>${totalsBreakdown.total.toFixed(2)}</span>
               </div>
             </div>
           </section>

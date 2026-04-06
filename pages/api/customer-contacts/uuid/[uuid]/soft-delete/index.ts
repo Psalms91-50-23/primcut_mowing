@@ -1,9 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.API_BASE_URL;
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   const { uuid } = req.query;
+
+  const BACKEND_URL = process.env.BACKEND_URL;
 
   if (!BACKEND_URL) {
     return res.status(500).json({
@@ -28,20 +31,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const cookieHeader = req.headers.cookie || "";
 
     const backendRes = await fetch(
-      `${BACKEND_URL}/customer-contacts/uuid/${uuid}`,
+      `${BACKEND_URL}/api/customer-contacts/uuid/${uuid}/soft-delete`,
       {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           ...(cookieHeader ? { cookie: cookieHeader } : {}),
         },
-        body: JSON.stringify(req.body),
+        body: JSON.stringify(req.body || {}),
       }
     );
 
     const text = await backendRes.text();
 
     let data: any = null;
+
     try {
       data = text ? JSON.parse(text) : null;
     } catch {
@@ -51,12 +55,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(backendRes.status).json(
       data || {
         message: backendRes.ok
-          ? "Customer contact updated successfully"
-          : "Failed to update customer contact",
+          ? "Customer contact soft deleted successfully"
+          : "Failed to soft delete customer contact",
       }
     );
   } catch (error: any) {
-    console.error("Next proxy error updating customer contact:", error);
+    console.error("Next proxy error soft deleting customer contact:", error);
 
     return res.status(500).json({
       error: error?.message || "Internal server error",

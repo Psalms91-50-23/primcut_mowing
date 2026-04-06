@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+
 import {
   CalendarDays,
   FileText,
@@ -11,12 +12,14 @@ import {
   Briefcase,
   Pencil,
   Save,
+  Trash2,
   X,
   Users,
   Plus,
   Sparkles,
   ExternalLink,
 } from "lucide-react";
+
 import { Card, CardContent } from "@/components/ui/card";
 import GoogleAddressAutocomplete from "@/components/GoogleAddressAutocomplete";
 import { Button } from "@/components/ui/button";
@@ -194,6 +197,22 @@ type ContactFormState = {
   is_billing_contact: boolean;
   is_site_contact: boolean;
 };
+
+type JobPreviewItem =
+  | {
+      type: "job";
+      key: string;
+      date: string | null;
+      job: JobRecord;
+      recurrence: null;
+    }
+  | {
+      type: "recurrence";
+      key: string;
+      date: string | null;
+      job: JobRecord;
+      recurrence: JobRecurrenceRecord;
+    };
 
 function toArray<T = any>(value: any): T[] {
   if (Array.isArray(value)) return value;
@@ -411,8 +430,121 @@ async function tryFetchJson(urls: string[], init?: RequestInit) {
   throw new Error("No working endpoint found.");
 }
 
+type WindowOption = {
+  value: string;
+  label: string;
+  mins: number;
+};
+
+const WINDOW_OPTIONS: WindowOption[] = [
+  { value: "anytime", label: "Anytime (9am–5pm)", mins: 480 },
+  { value: "morning", label: "Morning (9am–12pm)", mins: 180 },
+  { value: "midday", label: "Midday (12pm–3pm)", mins: 180 },
+  { value: "afternoon", label: "Afternoon (3pm–5pm)", mins: 120 },
+];
+
+function formatScheduledWindow(preset?: string | null, mins?: number | null) {
+  const normalizedPreset = (preset || "").trim().toLowerCase();
+
+  if (normalizedPreset) {
+    const matched = WINDOW_OPTIONS.find((option) => option.value === normalizedPreset);
+    if (matched) return matched.label;
+  }
+
+  if (mins && Number(mins) > 0) {
+    return `${mins} minute window`;
+  }
+
+  return "—";
+}
+
+function formatDateOnly(date?: string | null) {
+  if (!date) return "—";
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("en-NZ", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(parsed);
+}
+
+function isSameLocalDay(dateA: Date, dateB: Date) {
+  return (
+    dateA.getFullYear() === dateB.getFullYear() &&
+    dateA.getMonth() === dateB.getMonth() &&
+    dateA.getDate() === dateB.getDate()
+  );
+}
+
+function isToday(date?: string | null) {
+  if (!date) return false;
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  return isSameLocalDay(parsed, new Date());
+}
+
+function isAfterToday(date?: string | null) {
+  if (!date) return false;
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const now = new Date();
+  const startOfTomorrow = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + 1,
+    0,
+    0,
+    0,
+    0
+  );
+
+  return parsed.getTime() >= startOfTomorrow.getTime();
+}
+
+function getPreviewAddress(item: JobPreviewItem, customerAddress?: string | null) {
+  return item.job.job_address || customerAddress || "Address not available";
+}
+
+function getPreviewStatus(item: JobPreviewItem) {
+  if (item.type === "recurrence") {
+    return item.recurrence.status || "scheduled";
+  }
+  return item.job.status || "pending";
+}
+
+function getPreviewTotal(item: JobPreviewItem) {
+  if (item.type === "recurrence") {
+    return item.recurrence.total_amount;
+  }
+  return item.job.total_amount;
+}
+
+function getPreviewWindowPreset(item: JobPreviewItem) {
+  if (item.type === "recurrence") {
+    return item.recurrence.scheduled_window_preset || item.job.scheduled_window_preset || null;
+  }
+  return item.job.scheduled_window_preset || null;
+}
+
+function getPreviewWindowMins(item: JobPreviewItem) {
+  if (item.type === "recurrence") {
+    return item.recurrence.scheduled_window_mins ?? item.job.scheduled_window_mins ?? null;
+  }
+  return item.job.scheduled_window_mins ?? null;
+}
+
+function getPreviewRoute(item: JobPreviewItem) {
+  if (item.type === "recurrence" && item.recurrence.uuid) {
+    return `/dashboard/customer/recurrences/${item.recurrence.uuid}`;
+  }
+  return `/dashboard/customer/jobs/${item.job.uuid}`;
+}
+
 export default function CustomerDashboard() {
-  
   const { user, logout, loading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -430,7 +562,7 @@ export default function CustomerDashboard() {
 
   const [showCustomerDetails, setShowCustomerDetails] = useState(false);
   const [showAlternativeContacts, setShowAlternativeContacts] = useState(false);
-
+  const [deletingContactUuid, setDeletingContactUuid] = useState<string | null>(null);
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [customerForm, setCustomerForm] = useState<CustomerFormState>(
@@ -442,9 +574,7 @@ export default function CustomerDashboard() {
   const [contactMode, setContactMode] = useState<"add" | "edit" | null>(null);
   const [editingContactUuid, setEditingContactUuid] = useState<string | null>(null);
   const [savingContact, setSavingContact] = useState(false);
-  const [contactForm, setContactForm] = useState<ContactFormState>(
-    getDefaultContactForm()
-  );
+  const [contactForm, setContactForm] = useState<ContactFormState>(getDefaultContactForm());
   const [contactSaveError, setContactSaveError] = useState("");
   const [contactSaveSuccess, setContactSaveSuccess] = useState("");
 
@@ -459,8 +589,7 @@ export default function CustomerDashboard() {
     if (customerName?.trim()) return customerName;
 
     return (
-      formatFullName(user?.first_name ?? undefined, user?.last_name ?? undefined) ||
-      "there"
+      formatFullName(user?.first_name ?? undefined, user?.last_name ?? undefined) || "there"
     );
   }, [dashboard.customer, user]);
 
@@ -565,14 +694,27 @@ export default function CustomerDashboard() {
 
   const stats = useMemo(() => {
     const quoteList = dashboard.quotes || [];
-    const jobList = dashboard.jobs || [];
     const recurrenceList = allRecurrences || [];
 
-    const upcomingJobsCount = jobList.filter((job) => {
-      const date = getJobDate(job);
-      if (!date) return false;
-      return new Date(date).getTime() >= new Date().getTime();
-    });
+    const todaysJobsCount =
+      dashboard.jobs.filter((job) => {
+        if (job?.is_deleted) return false;
+        return isToday(getJobDate(job));
+      }).length +
+      recurrenceList.filter((item) => {
+        if (item?.is_deleted) return false;
+        return isToday(getRecurrenceDate(item));
+      }).length;
+
+    const upcomingJobsCount =
+      dashboard.jobs.filter((job) => {
+        if (job?.is_deleted) return false;
+        return isAfterToday(getJobDate(job));
+      }).length +
+      recurrenceList.filter((item) => {
+        if (item?.is_deleted) return false;
+        return isAfterToday(getRecurrenceDate(item));
+      }).length;
 
     const pendingQuotes = quoteList.filter((quote) => {
       const status = normalizeStatus(quote.status);
@@ -589,7 +731,8 @@ export default function CustomerDashboard() {
       totalQuotes: quoteList.length,
       pendingQuotes: pendingQuotes.length,
       awaitingAcceptanceQuotes: awaitingAcceptanceQuotes.length,
-      upcomingJobs: upcomingJobsCount.length,
+      todaysJobs: todaysJobsCount,
+      upcomingJobs: upcomingJobsCount,
       recurringServices: recurrenceList.length,
       acceptedQuotes: acceptedQuotes.length,
       totalQuoted,
@@ -607,17 +750,77 @@ export default function CustomerDashboard() {
       .slice(0, 5);
   }, [dashboard.quotes]);
 
-  const upcomingJobs = useMemo(() => {
-    return [...dashboard.jobs]
+  const todaysJobPreviews = useMemo(() => {
+    const directJobs: JobPreviewItem[] = dashboard.jobs
       .filter((job) => {
         if (job?.is_deleted) return false;
-        const date = getJobDate(job);
-        if (!date) return false;
-        return new Date(date).getTime() >= new Date().getTime();
+        return isToday(getJobDate(job));
       })
+      .map((job) => ({
+        type: "job" as const,
+        key: `job-${job.uuid || job.id}`,
+        date: getJobDate(job),
+        job,
+        recurrence: null,
+      }));
+
+    const recurrenceJobs: JobPreviewItem[] = dashboard.jobs.flatMap((job) =>
+      getJobRecurrences(job)
+        .filter((item) => {
+          if (item?.is_deleted) return false;
+          return isToday(getRecurrenceDate(item));
+        })
+        .map((item) => ({
+          type: "recurrence" as const,
+          key: `recurrence-${item.uuid || item.id}`,
+          date: getRecurrenceDate(item),
+          job,
+          recurrence: item,
+        }))
+    );
+
+    return [...directJobs, ...recurrenceJobs]
       .sort((a, b) => {
-        const aTime = new Date(getJobDate(a) || 0).getTime();
-        const bTime = new Date(getJobDate(b) || 0).getTime();
+        const aTime = new Date(a.date || 0).getTime();
+        const bTime = new Date(b.date || 0).getTime();
+        return aTime - bTime;
+      })
+      .slice(0, 5);
+  }, [dashboard.jobs]);
+
+  const upcomingJobPreviews = useMemo(() => {
+    const directJobs: JobPreviewItem[] = dashboard.jobs
+      .filter((job) => {
+        if (job?.is_deleted) return false;
+        return isAfterToday(getJobDate(job));
+      })
+      .map((job) => ({
+        type: "job" as const,
+        key: `job-${job.uuid || job.id}`,
+        date: getJobDate(job),
+        job,
+        recurrence: null,
+      }));
+
+    const recurrenceJobs: JobPreviewItem[] = dashboard.jobs.flatMap((job) =>
+      getJobRecurrences(job)
+        .filter((item) => {
+          if (item?.is_deleted) return false;
+          return isAfterToday(getRecurrenceDate(item));
+        })
+        .map((item) => ({
+          type: "recurrence" as const,
+          key: `recurrence-${item.uuid || item.id}`,
+          date: getRecurrenceDate(item),
+          job,
+          recurrence: item,
+        }))
+    );
+
+    return [...directJobs, ...recurrenceJobs]
+      .sort((a, b) => {
+        const aTime = new Date(a.date || 0).getTime();
+        const bTime = new Date(b.date || 0).getTime();
         return aTime - bTime;
       })
       .slice(0, 5);
@@ -648,15 +851,10 @@ export default function CustomerDashboard() {
 
   const editingContact = useMemo(() => {
     if (!editingContactUuid) return null;
-    return (
-      dashboard.contacts.find((contact) => contact.uuid === editingContactUuid) || null
-    );
+    return dashboard.contacts.find((contact) => contact.uuid === editingContactUuid) || null;
   }, [dashboard.contacts, editingContactUuid]);
 
-  const handleCustomerFormChange = (
-    field: keyof CustomerFormState,
-    value: string
-  ) => {
+  const handleCustomerFormChange = (field: keyof CustomerFormState, value: string) => {
     setCustomerForm((prev) => ({
       ...prev,
       [field]: value,
@@ -866,6 +1064,53 @@ export default function CustomerDashboard() {
     }
   };
 
+  const handleSoftDeleteContact = async (contactUuid?: string | null) => {
+    if (!contactUuid || !dashboard.customer?.uuid) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this alternative contact?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingContactUuid(contactUuid);
+      setContactSaveError("");
+      setContactSaveSuccess("");
+
+      const res = await fetch(`/api/customer-contacts/uuid/${contactUuid}/soft-delete`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to delete contact.");
+      }
+
+      setDashboard((prev) => ({
+        ...prev,
+        contacts: prev.contacts.filter((contact) => contact.uuid !== contactUuid),
+      }));
+
+      if (editingContactUuid === contactUuid) {
+        setEditingContactUuid(null);
+        setContactForm(getDefaultContactForm());
+        setContactMode(null);
+      }
+
+      setContactSaveSuccess("Alternative contact deleted successfully.");
+    } catch (err: any) {
+      setContactSaveError(err?.message || "Failed to delete contact.");
+    } finally {
+      setDeletingContactUuid(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -881,50 +1126,45 @@ export default function CustomerDashboard() {
     <div className="min-h-screen bg-slate-50 mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Customer Dashboard</h1>
-          <p className="text-slate-600 mt-2">
-            Welcome back, <span className="font-semibold">{headerName}</span>.
-          </p>
-        </div>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Customer Dashboard</h1>
+              <p className="text-slate-600 mt-2">
+                Welcome back, <span className="font-semibold">{headerName}</span>.
+              </p>
+            </div>
 
-        <div className="flex gap-3">
-          <Button
-            variant="outline"
-            onClick={() => loadDashboard(true)}
-            disabled={refreshing}
-            className="gap-2 hover:cursor-pointer"
-          >
-            <RefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => loadDashboard(true)}
+                disabled={refreshing}
+                className="gap-2 hover:cursor-pointer"
+              >
+                <RefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
 
-          <Button
-            variant="outline"
-            onClick={logout}
-            className="hover:cursor-pointer"
-          >
-            Logout
-          </Button>
+              <Button variant="outline" onClick={logout} className="hover:cursor-pointer">
+                Logout
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-    {error ? (
-      <Card className="border-red-200 bg-red-50 mb-6">
-        <CardContent className="p-4 flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-          <div>
-            <p className="font-semibold text-red-700">Unable to load dashboard</p>
-            <p className="text-sm text-red-600 mt-1">{error}</p>
-          </div>
-        </CardContent>
-      </Card>
-    ) : null}
-
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {error ? (
+          <Card className="border-red-200 bg-red-50 mb-6">
+            <CardContent className="p-4 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+              <div>
+                <p className="font-semibold text-red-700">Unable to load dashboard</p>
+                <p className="text-sm text-red-600 mt-1">{error}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {customerMissing ? (
           <Card className="rounded-2xl shadow-sm border-0 mb-6">
@@ -962,9 +1202,7 @@ export default function CustomerDashboard() {
                       </div>
 
                       <div>
-                        <h2 className="text-xl font-semibold text-slate-900">
-                          Action Required
-                        </h2>
+                        <h2 className="text-xl font-semibold text-slate-900">Action Required</h2>
                         <p className="text-sm text-slate-600 mt-1">
                           Keep on top of quotes that need your attention and create a new
                           quote request when needed.
@@ -1068,7 +1306,7 @@ export default function CustomerDashboard() {
               </Card>
             </section>
 
-            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5 mb-8">
+            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-5 mb-8">
               <StatCard
                 title="Total Quotes"
                 value={String(stats.totalQuotes)}
@@ -1085,9 +1323,14 @@ export default function CustomerDashboard() {
                 icon={<AlertCircle className="h-5 w-5" />}
               />
               <StatCard
+                title="Today's Jobs"
+                value={String(stats.todaysJobs)}
+                icon={<CalendarDays className="h-5 w-5" />}
+              />
+              <StatCard
                 title="Upcoming Jobs"
                 value={String(stats.upcomingJobs)}
-                icon={<CalendarDays className="h-5 w-5" />}
+                icon={<Briefcase className="h-5 w-5" />}
               />
               <StatCard
                 title="Recurring Services"
@@ -1457,9 +1700,9 @@ export default function CustomerDashboard() {
                                 variant="outline"
                                 onClick={handleCancelContactForm}
                                 disabled={savingContact}
-                                className="gap-2 hover:cursor-pointer"
+                                className="gap-2 hover:cursor-pointer font-bold group hover:border-red-500"
                               >
-                                <X className="h-4 w-4" />
+                                <X className="h-4 w-4 transition-transform duration-200 group-hover:scale-145" />
                                 Cancel
                               </Button>
                             </div>
@@ -1484,43 +1727,54 @@ export default function CustomerDashboard() {
                                 contactMode === "edit" &&
                                 editingContactUuid === contact.uuid;
 
+                              const isDeletingThisContact =
+                                deletingContactUuid === contact.uuid;
+
                               return (
                                 <div
                                   key={contact.uuid || contact.id}
                                   className="rounded-xl border border-slate-200 bg-white p-4"
                                 >
-                                  <div className="flex items-start justify-between gap-3">
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                     <div>
                                       <p className="font-semibold text-slate-900">
                                         {fullName || "Unnamed contact"}
                                       </p>
 
-                                      <div className="flex flex-wrap gap-2 mt-2">
-                                        {contact.is_primary ? (
-                                          <Badge label="Primary" />
-                                        ) : null}
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        {contact.is_primary ? <Badge label="Primary" /> : null}
                                         {contact.is_billing_contact ? (
                                           <Badge label="Billing" />
                                         ) : null}
-                                        {contact.is_site_contact ? (
-                                          <Badge label="Site" />
-                                        ) : null}
-                                        {contact.role ? (
-                                          <Badge label={contact.role} />
-                                        ) : null}
+                                        {contact.is_site_contact ? <Badge label="Site" /> : null}
+                                        {contact.role ? <Badge label={contact.role} /> : null}
                                       </div>
                                     </div>
 
                                     {!isThisContactEditing ? (
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        className="gap-2 hover:cursor-pointer"
-                                        onClick={() => handleStartEditContact(contact)}
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                        Edit
-                                      </Button>
+                                      <div className="flex flex-col gap-2 sm:flex-row">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          className="gap-2 hover:cursor-pointer group"
+                                          onClick={() => handleStartEditContact(contact)}
+                                          disabled={isDeletingThisContact}
+                                        >
+                                          <Pencil className="h-4 w-4 transition-transform duration-200 group-hover:scale-145" />
+                                          Edit
+                                        </Button>
+
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          className="gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:cursor-pointer group"
+                                          onClick={() => handleSoftDeleteContact(contact.uuid)}
+                                          disabled={isDeletingThisContact}
+                                        >
+                                          <Trash2 className="h-4 w-4 transition-transform duration-200 group-hover:scale-145" />
+                                          {isDeletingThisContact ? "Deleting..." : "Delete"}
+                                        </Button>
+                                      </div>
                                     ) : null}
                                   </div>
 
@@ -1643,69 +1897,185 @@ export default function CustomerDashboard() {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-5">
                       <div>
+                        <h2 className="text-lg font-semibold text-slate-900">Today's Jobs</h2>
+                        <p className="text-sm text-slate-500">
+                          Jobs and recurring visits scheduled for today
+                        </p>
+                      </div>
+
+                      {todaysJobPreviews.length > 0 ? (
+                        <div className="inline-flex items-center rounded-full bg-green-100 px-3 py-2 text-sm font-medium text-green-800">
+                          {todaysJobPreviews.length} scheduled today
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {todaysJobPreviews.length === 0 ? (
+                      <EmptyState
+                        icon={<CalendarDays className="h-5 w-5" />}
+                        title="No jobs scheduled for today"
+                        description="Any jobs or recurring visits due today will appear here."
+                      />
+                    ) : (
+                      <div className="space-y-3">
+                        {todaysJobPreviews.map((item) => (
+                          <div
+                            key={item.key}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => router.push(getPreviewRoute(item))}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                router.push(getPreviewRoute(item));
+                              }
+                            }}
+                            className={`rounded-xl border p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 cursor-pointer hover:shadow-xl transition ${
+                              item.type === "recurrence"
+                                ? "border-green-200 bg-green-50"
+                                : "border-slate-200 bg-white"
+                            }`}
+                          >
+                            <div>
+                              <p className="font-semibold text-slate-900">
+                                {getJobDisplayName(item.job)}
+                              </p>
+
+                              <p className="text-sm text-slate-500 mt-1">
+                                {getPreviewAddress(item, dashboard.customer?.address)}
+                              </p>
+
+                              <p className="text-sm text-slate-600 mt-2">
+                                Scheduled: {formatDateOnly(item.date)}
+                              </p>
+
+                              <p className="text-sm text-slate-600 mt-1">
+                                Arrival window:{" "}
+                                {formatScheduledWindow(
+                                  getPreviewWindowPreset(item),
+                                  getPreviewWindowMins(item)
+                                )}
+                              </p>
+
+                              <div className="flex flex-wrap gap-3 mt-2 text-xs">
+                                <span className="text-slate-500">
+                                  Status: {getPreviewStatus(item)}
+                                </span>
+
+                                <span className="text-slate-500">
+                                  Total: {asMoney(getPreviewTotal(item))}
+                                </span>
+
+                                {item.type === "recurrence" ? (
+                                  <span className="text-green-700 font-medium">
+                                    Recurring visit
+                                  </span>
+                                ) : item.job.is_recurring ? (
+                                  <span className="text-green-700 font-medium">
+                                    Recurring job
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col lg:items-end">
+                              <span className="text-sm font-semibold text-green-700">
+                                Happening today
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl shadow-sm border-0">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-5">
+                      <div>
                         <h2 className="text-lg font-semibold text-slate-900">Upcoming Jobs</h2>
                         <p className="text-sm text-slate-500">
-                          Scheduled jobs from your customer account
+                          Future jobs and recurring visits from your customer account
                         </p>
                       </div>
                     </div>
 
-                    {upcomingJobs.length === 0 ? (
+                    {upcomingJobPreviews.length === 0 ? (
                       <EmptyState
                         icon={<Briefcase className="h-5 w-5" />}
                         title="No upcoming jobs"
-                        description="Any scheduled jobs for your customer record will show here."
+                        description="Any future scheduled jobs or recurring visits will show here."
                       />
                     ) : (
                       <div className="space-y-3">
-                        {upcomingJobs.map((job) => {
-                          const recurrences = getJobRecurrences(job);
+                        {upcomingJobPreviews.map((item) => (
+                          <div
+                            key={item.key}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => router.push(getPreviewRoute(item))}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                router.push(getPreviewRoute(item));
+                              }
+                            }}
+                            className={`rounded-xl border p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 cursor-pointer hover:shadow-xl transition ${
+                              item.type === "recurrence"
+                                ? "border-green-200 bg-green-50"
+                                : "border-slate-200 bg-white"
+                            }`}
+                          >
+                            <div>
+                              <p className="font-semibold text-slate-900">
+                                {getJobDisplayName(item.job)}
+                              </p>
 
-                          return (
-                            <div
-                              key={job.uuid || job.id}
-                              className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"
-                            >
-                              <div>
-                                <p className="font-semibold text-slate-900">
-                                  {getJobDisplayName(job)}
-                                </p>
-                                <p className="text-sm text-slate-500 mt-1">
-                                  {job.job_address ||
-                                    dashboard.customer?.address ||
-                                    "Address not available"}
-                                </p>
+                              <p className="text-sm text-slate-500 mt-1">
+                                {getPreviewAddress(item, dashboard.customer?.address)}
+                              </p>
 
-                                <div className="flex flex-wrap gap-3 mt-2 text-xs">
-                                  <span className="text-slate-500">
-                                    Status: {job.status || "pending"}
+                              <p className="text-sm text-slate-600 mt-2">
+                                Scheduled: {formatDateOnly(item.date)}
+                              </p>
+
+                              <p className="text-sm text-slate-600 mt-1">
+                                Arrival window:{" "}
+                                {formatScheduledWindow(
+                                  getPreviewWindowPreset(item),
+                                  getPreviewWindowMins(item)
+                                )}
+                              </p>
+
+                              <div className="flex flex-wrap gap-3 mt-2 text-xs">
+                                <span className="text-slate-500">
+                                  Status: {getPreviewStatus(item)}
+                                </span>
+
+                                <span className="text-slate-500">
+                                  Total: {asMoney(getPreviewTotal(item))}
+                                </span>
+
+                                {item.type === "recurrence" ? (
+                                  <span className="text-green-700 font-medium">
+                                    Recurring visit
                                   </span>
-                                  <span className="text-slate-500">
-                                    Total: {asMoney(job.total_amount)}
+                                ) : item.job.is_recurring ? (
+                                  <span className="text-green-700 font-medium">
+                                    Recurring job
                                   </span>
-                                  {job.is_recurring ? (
-                                    <span className="text-green-700 font-medium">
-                                      Recurring
-                                    </span>
-                                  ) : null}
-                                </div>
-
-                                {recurrences.length > 0 ? (
-                                  <p className="text-xs text-green-700 mt-2">
-                                    {recurrences.length} recurring{" "}
-                                    {recurrences.length === 1 ? "visit" : "visits"} attached
-                                  </p>
                                 ) : null}
                               </div>
-
-                              <div className="flex flex-col lg:items-end">
-                                <span className="text-sm font-medium text-green-700">
-                                  {formatDateTime(getJobDate(job))}
-                                </span>
-                              </div>
                             </div>
-                          );
-                        })}
+
+                            <div className="flex flex-col lg:items-end">
+                              <span className="text-sm font-medium text-green-700">
+                                {formatDateOnly(item.date)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </CardContent>
@@ -1735,14 +2105,32 @@ export default function CustomerDashboard() {
                         {recurringJobs.map((item) => (
                           <div
                             key={item.uuid || item.id}
-                            className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() =>
+                              router.push(`/dashboard/customer/recurrences/${item.uuid}`)
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                router.push(`/dashboard/customer/recurrences/${item.uuid}`);
+                              }
+                            }}
+                            className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer hover:shadow-xl transition"
                           >
                             <div>
                               <p className="font-semibold text-slate-900">
                                 {getRecurrenceLabel(item)}
                               </p>
                               <p className="text-sm text-slate-500 mt-1">
-                                Scheduled: {formatDateTime(item.scheduled_at)}
+                                Scheduled: {formatDateOnly(item.scheduled_at)}
+                              </p>
+                              <p className="text-sm text-slate-500 mt-1">
+                                Arrival window:{" "}
+                                {formatScheduledWindow(
+                                  item.scheduled_window_preset,
+                                  item.scheduled_window_mins
+                                )}
                               </p>
                               <p className="text-sm text-slate-500 mt-1">
                                 Total: {asMoney(item.total_amount)}
@@ -1754,7 +2142,9 @@ export default function CustomerDashboard() {
                                 {item.status || "scheduled"}
                               </span>
                               <span className="text-sm font-medium text-green-700">
-                                {item.is_completed ? "Completed" : "Upcoming"}
+                                {item.is_completed
+                                  ? formatDateOnly(item.completed_date)
+                                  : formatDateOnly(item.scheduled_at)}
                               </span>
                             </div>
                           </div>
@@ -1765,71 +2155,8 @@ export default function CustomerDashboard() {
                 </Card>
               </div>
             </section>
-
-            <section className="mt-8">
-              <Card className="rounded-2xl shadow-sm border-0">
-                <CardContent className="p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">Account Summary</h2>
-                    <p className="text-sm text-slate-500 mt-1">
-                      Accepted quotes: {stats.acceptedQuotes} • Total quoted value:{" "}
-                      {asMoney(stats.totalQuoted)}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-green-700 font-medium">
-                    <CheckCircle2 className="h-5 w-5" />
-                    Customer account connected successfully
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
           </>
-        ) : (
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="rounded-2xl shadow-sm border-0">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-11 h-11 rounded-full bg-green-100 flex items-center justify-center text-green-700">
-                    <User2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">Account Details</h2>
-                    <p className="text-sm text-slate-500">Using your login information</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4 text-sm">
-                  <DetailRow label="Full name" value={headerName} />
-                  <DetailRow label="Email" value={user?.email || "—"} />
-                  <DetailRow label="Role" value={user?.role || "—"} />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl shadow-sm border-0">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center text-slate-700">
-                    <AlertCircle className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">No customer data yet</h2>
-                    <p className="text-sm text-slate-500">
-                      Quotes, jobs, recurring services, and contacts will appear once your
-                      customer profile is created.
-                    </p>
-                  </div>
-                </div>
-
-                <p className="text-sm text-slate-600">
-                  This account is logged in successfully, but no linked customer record was
-                  returned from the backend route.
-                </p>
-              </CardContent>
-            </Card>
-          </section>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -1846,24 +2173,26 @@ function StatCard({
 }) {
   return (
     <Card className="rounded-2xl shadow-sm border-0">
-      <CardContent className="p-5 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-500">{title}</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{value}</p>
-        </div>
-        <div className="w-11 h-11 rounded-full bg-green-100 text-green-700 flex items-center justify-center">
-          {icon}
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <div className="min-w-0">
+            <p className="text-sm text-slate-500">{title}</p>
+            <p className="text-2xl font-bold text-slate-900 mt-1">{value}</p>
+          </div>
+          <div className="w-11 h-11 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+            {icon}
+          </div>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1 border-b border-slate-100 pb-3 last:border-none last:pb-0">
+    <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-2 last:border-b-0 last:pb-0">
       <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-slate-900 break-words">{value || "—"}</span>
+      <span className="text-slate-900 text-right break-words">{value}</span>
     </div>
   );
 }
@@ -1880,15 +2209,15 @@ function InputGroup({
   type?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-sm text-slate-600">{label}</label>
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-green-600"
+        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
       />
-    </div>
+    </label>
   );
 }
 
@@ -1902,15 +2231,15 @@ function TextAreaGroup({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-sm text-slate-600">{label}</label>
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={4}
-        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-green-600 resize-none"
+        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
       />
-    </div>
+    </label>
   );
 }
 
@@ -1924,23 +2253,15 @@ function CheckboxRow({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-sm text-slate-700 hover:cursor-pointer">
+    <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="rounded border-slate-300"
+        className="h-4 w-4 rounded border-slate-300 text-violet-600 transition duration-200 focus:ring-violet-500 hover:scale-110 hover:cursor-pointer"
       />
       <span>{label}</span>
     </label>
-  );
-}
-
-function Badge({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-      {label}
-    </span>
   );
 }
 
@@ -1954,12 +2275,20 @@ function EmptyState({
   description: string;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center bg-slate-50">
-      <div className="mx-auto mb-3 w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-600 shadow-sm">
         {icon}
       </div>
       <p className="font-semibold text-slate-900">{title}</p>
-      <p className="text-sm text-slate-500 mt-1">{description}</p>
+      <p className="mt-1 text-sm text-slate-500">{description}</p>
     </div>
+  );
+}
+
+function Badge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+      {label}
+    </span>
   );
 }

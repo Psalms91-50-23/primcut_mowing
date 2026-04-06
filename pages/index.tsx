@@ -392,7 +392,7 @@ const Home: React.FC<Props> = () => {
           Need Property Maintenance You Can Rely On?
         </h2>
         <p className="mt-4 text-lg text-white/80 max-w-2xl mx-auto">
-          Get in touch for exterior repairs, handyman work, lawns, gardens,
+          Get in touch for exterior repairs, handyman work, lawns,
           cleaning, and general property upkeep across the Hutt Valley.
         </p>
 

@@ -5,6 +5,17 @@ import { useUI } from "@/context/UIContext";
 import { useAuth, roleRedirectMap } from "@/context/AuthContext";
 import { formatDateOnly, pad, toDatetimeLocalValue, toDateLocalValue, localDatetimeToISO, getWindowLabel, localDateToDB } from "@/utils/utils";
 
+type EditableService = {
+  service_uuid?: string | null;
+  code?: string | null;
+  label?: string | null;
+  value?: string | null;
+  description?: string | null;
+  unit?: string | null;
+  quantity: number | "";
+  unit_price: number | "";
+  line_total?: number;
+};
 
 type RecurrencePreset = "one_off" | "weekly" | "fortnightly" | "monthly";
 
@@ -19,6 +30,11 @@ type RecurrenceDraft = {
   scheduledLocal: string;
   scheduledWindowMins: number;
   windowPreset?: string;
+  services: EditableService[];
+  subtotalAmount: number;
+  gstAmount: number;
+  totalAmount: number;
+  clientScheduleMessage?: string;
   dirty: boolean;
   saving: boolean;
 };
@@ -33,10 +49,15 @@ type PaginationState = {
 };
 
 type QuoteService = {
+  service_uuid?: string | null;
+  code?: string | null;
   label?: string;
   value?: string;
+  description?: string | null;
+  unit?: string | null;
   quantity?: number;
   unit_price?: number;
+  line_total?: number;
 };
 
 type QuoteImage = {
@@ -104,6 +125,8 @@ type JobRecurrenceRecord = {
   pricing_source?: string | null;
   is_deleted?: boolean;
   deleted_at?: string | null;
+  client_schedule_message?: string | null;
+  client_schedule_message_sent_at?: string | null;
 };
 
 type JobRecord = {
@@ -241,6 +264,60 @@ function formatDateTime(value?: string | null) {
   return d.toLocaleString("en-NZ");
 }
 
+function round2(value: number) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function normalizeService(service: any): EditableService {
+  const quantity = Number(service?.quantity ?? 1);
+  const unitPrice = Number(service?.unit_price ?? 0);
+
+  return {
+    service_uuid: service?.service_uuid ?? null,
+    code: service?.code ?? null,
+    label: service?.label ?? service?.value ?? "Service",
+    value: service?.value ?? service?.label ?? "Service",
+    description: service?.description ?? null,
+    unit: service?.unit ?? null,
+    quantity: Number.isFinite(quantity) ? quantity : 1,
+    unit_price: Number.isFinite(unitPrice) ? unitPrice : 0,
+    line_total: round2(quantity * unitPrice),
+  };
+}
+
+function calcTotals(services: EditableService[]) {
+  const subtotal = round2(
+    services.reduce((sum, service) => {
+      const qty = Number(service.quantity || 0);
+      const unitPrice = Number(service.unit_price || 0);
+      return sum + qty * unitPrice;
+    }, 0)
+  );
+
+  const gst = round2(subtotal * 0.15);
+  const total = round2(subtotal + gst);
+
+  return {
+    subtotalAmount: subtotal,
+    gstAmount: gst,
+    totalAmount: total,
+  };
+}
+
+function getEffectiveRecurrenceServices(
+  recurrence?: JobRecurrenceRecord | null,
+  job?: JobRecord | null
+): EditableService[] {
+  const baseServices =
+    Array.isArray(recurrence?.services) && recurrence.services.length > 0
+      ? recurrence.services
+      : Array.isArray(job?.services)
+      ? job.services
+      : [];
+
+  return baseServices.map(normalizeService);
+}
+
 function getRecurrenceKey(r: JobRecurrenceRecord) {
   return r.uuid || String(r.id || "");
 }
@@ -251,11 +328,34 @@ function getRecurrencePatchId(r: JobRecurrenceRecord) {
 
 function buildRecurrenceDraft(r: JobRecurrenceRecord, job?: JobRecord | null): RecurrenceDraft {
   const mins = clampWindowMins(r?.scheduled_window_mins ?? job?.scheduled_window_mins, 240);
+  const services = getEffectiveRecurrenceServices(r, job);
+
+  const calculatedTotals = calcTotals(services);
+
+  const totals = {
+    subtotalAmount:
+      r?.subtotal_amount !== null && r?.subtotal_amount !== undefined
+        ? Number(r.subtotal_amount)
+        : calculatedTotals.subtotalAmount,
+    gstAmount:
+      r?.gst_amount !== null && r?.gst_amount !== undefined
+        ? Number(r.gst_amount)
+        : calculatedTotals.gstAmount,
+    totalAmount:
+      r?.total_amount !== null && r?.total_amount !== undefined
+        ? Number(r.total_amount)
+        : calculatedTotals.totalAmount,
+  };
 
   return {
-    scheduledLocal: toDatetimeLocalValue(r?.scheduled_at),
+    scheduledLocal: toDateLocalValue(r?.scheduled_at),
     scheduledWindowMins: mins,
     windowPreset: r?.scheduled_window_preset ?? job?.scheduled_window_preset ?? "anytime",
+    services,
+    subtotalAmount: totals.subtotalAmount,
+    gstAmount: totals.gstAmount,
+    totalAmount: totals.totalAmount,
+    clientScheduleMessage: r?.client_schedule_message || "",
     dirty: false,
     saving: false,
   };
@@ -560,16 +660,14 @@ export default function JobPage() {
           const key = getRecurrenceKey(r);
           if (!key) continue;
 
+         const rebuilt = buildRecurrenceDraft(r, job);
           next[key] = {
-            scheduledLocal: toDatetimeLocalValue(r?.scheduled_at),
-            scheduledWindowMins: clampWindowMins(
-              r?.scheduled_window_mins ?? job?.scheduled_window_mins,
-              240
-            ),
+            ...rebuilt,
             windowPreset:
               r?.scheduled_window_preset ??
               prev[key]?.windowPreset ??
               job?.scheduled_window_preset ??
+              rebuilt.windowPreset ??
               "anytime",
             dirty: false,
             saving: false,
@@ -676,6 +774,25 @@ export default function JobPage() {
     router.push(dashboardPath);
   };
 
+  const hasRecurrences = recurrences.length > 0;
+  const isOneOffJob = !job?.is_recurring && recurrencePreset === "one_off";
+
+  const canCompleteJobDirectly =
+    Boolean(job?.uuid) &&
+    !job?.is_completed &&
+    isOneOffJob &&
+    !hasRecurrences;
+
+  const goToCompleteJobPage = () => {
+    if (!job?.uuid) return;
+    router.push(`/employee/jobs/uuid/${job.uuid}/completed`);
+  };
+
+  const goToCompleteRecurrencePage = (recurrenceUuid?: string) => {
+    if (!recurrenceUuid) return;
+    router.push(`/employee/jobs/uuid/recurrence/${recurrenceUuid}/completed`);
+  };
+
   const onSave = async () => {
     if (!uuid) return;
 
@@ -696,7 +813,7 @@ export default function JobPage() {
 
       const recurrence_end_date =
         recurrencePreset !== "one_off" ? localDateToDB(endDateLocal) : null;
-
+      
       console.log("PATCHING SCHEDULE", `/api/employee/jobs/${uuid}/schedule`);
 
       const res = await fetch(`/api/employee/jobs/${uuid}/schedule`, {
@@ -851,12 +968,88 @@ export default function JobPage() {
     }));
   };
 
-  const onSaveRecurrence = async (recurrence: JobRecurrenceRecord) => {
-    if (!uuid) return;
+  const updateRecurrenceService = (
+    recurrenceKey: string,
+    index: number,
+    patch: Partial<EditableService>
+  ) => {
+    const current = recurrenceDrafts[recurrenceKey];
+    if (!current) return;
 
+    const nextServices = [...(current.services || [])];
+    const existing = nextServices[index];
+    if (!existing) return;
+
+    const updatedService: EditableService = {
+      ...existing,
+      ...patch,
+    };
+
+    const quantity = Number(updatedService.quantity || 0);
+    const unitPrice = Number(updatedService.unit_price || 0);
+
+    updatedService.line_total = round2(quantity * unitPrice);
+    nextServices[index] = updatedService;
+
+    const totals = calcTotals(nextServices);
+
+    updateRecurrenceDraft(recurrenceKey, {
+      services: nextServices,
+      subtotalAmount: totals.subtotalAmount,
+      gstAmount: totals.gstAmount,
+      totalAmount: totals.totalAmount,
+      dirty: true,
+    });
+  };
+
+  const removeRecurrenceService = (recurrenceKey: string, index: number) => {
+    const current = recurrenceDrafts[recurrenceKey];
+    if (!current) return;
+
+    const nextServices = (current.services || []).filter((_, i) => i !== index);
+    const totals = calcTotals(nextServices);
+
+    updateRecurrenceDraft(recurrenceKey, {
+      services: nextServices,
+      subtotalAmount: totals.subtotalAmount,
+      gstAmount: totals.gstAmount,
+      totalAmount: totals.totalAmount,
+      dirty: true,
+    });
+  };
+
+  const onResetRecurrenceServicesToJobDefault = async (recurrence: JobRecurrenceRecord) => {
     const recurrenceKey = getRecurrenceKey(recurrence);
-    const recurrenceId = getRecurrencePatchId(recurrence);
-    if (!recurrenceKey || !recurrenceId) return;
+    if (!recurrenceKey || !recurrence?.uuid) return;
+
+    updateRecurrenceDraft(recurrenceKey, { saving: true });
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      const res = await fetch(`/api/job-recurrences/${recurrence.uuid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clear_service_override: true,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Failed to reset recurrence services");
+
+      setSuccessMsg("Recurrence services reset to parent job default.");
+      await fetchRecurrences(recurrencePage);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err?.message || "Failed to reset recurrence services");
+      updateRecurrenceDraft(recurrenceKey, { saving: false });
+    }
+  };
+
+  const onUpdateRecurrenceOnly = async (recurrence: JobRecurrenceRecord) => {
+    const recurrenceKey = getRecurrenceKey(recurrence);
+    if (!recurrenceKey || !recurrence?.uuid) return;
 
     const draft = recurrenceDrafts[recurrenceKey];
     if (!draft) return;
@@ -866,42 +1059,18 @@ export default function JobPage() {
     setSuccessMsg(null);
 
     try {
-      const scheduled_at = draft.scheduledLocal ? localDatetimeToISO(draft.scheduledLocal) : null;
-      console.log("PATCHING SCHEDULE onSaveRecurrence", `/api/employee/jobs/${uuid}/schedule`);
-      const res = await fetch(`/api/employee/jobs/${uuid}/schedule`, {
+      const payload = buildRecurrenceUpdatePayload(draft);
+
+      const res = await fetch(`/api/job-recurrences/${recurrence.uuid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "recurrence",
-          recurrence: {
-            id: recurrenceId,
-            scheduled_at,
-            scheduled_window_mins: scheduled_at ? draft.scheduledWindowMins : null,
-            scheduled_window_preset: scheduled_at ? draft.windowPreset ?? "anytime" : null,
-            is_custom_schedule: true,
-            send_schedule_email: sendScheduleEmail,
-            notification_type: notificationType,
-          },
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Failed to update recurrence");
 
-      if (data?.emailSent) {
-        setSuccessMsg(
-          notificationType === "rescheduled"
-            ? "Recurrence updated and reschedule email sent to customer."
-            : "Recurrence updated and schedule email sent to customer."
-        );
-      } else if (sendScheduleEmail && data?.emailError) {
-        setSuccessMsg(`Recurrence updated, but email was not sent: ${data.emailError}`);
-      } else {
-        setSuccessMsg("Recurrence updated.");
-      }
-
-      setSendScheduleEmail(false);
-      setNotificationType("schedule_update");
+      setSuccessMsg("Recurrence updated.");
       await fetchRecurrences(recurrencePage);
     } catch (err: any) {
       console.error(err);
@@ -910,7 +1079,92 @@ export default function JobPage() {
     }
   };
 
-  const onResetRecurrenceToJobDefault = async (recurrence: JobRecurrenceRecord) => {
+  const onUpdateRecurrenceAndNotifyClient = async (recurrence: JobRecurrenceRecord) => {
+    const recurrenceKey = getRecurrenceKey(recurrence);
+    if (!recurrenceKey || !recurrence?.uuid) return;
+
+    const draft = recurrenceDrafts[recurrenceKey];
+    if (!draft) return;
+
+    updateRecurrenceDraft(recurrenceKey, { saving: true });
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      const payload = {
+        ...buildRecurrenceUpdatePayload(draft),
+        custom_message: draft.clientScheduleMessage?.trim() || null,
+        notification_type: notificationType,
+      };
+
+      const res = await fetch(`/api/job-recurrences/${recurrence.uuid}/notify-client`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Failed to update recurrence and notify client");
+
+      if (data?.emailSent) {
+        setSuccessMsg(
+          notificationType === "rescheduled"
+            ? "Recurrence updated and reschedule email sent to customer."
+            : "Recurrence updated and schedule email sent to customer."
+        );
+      } else if (data?.emailError) {
+        setSuccessMsg(`Recurrence updated, but email was not sent: ${data.emailError}`);
+      } else {
+        setSuccessMsg("Recurrence updated.");
+      }
+
+      await fetchRecurrences(recurrencePage);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err?.message || "Failed to update recurrence and notify client");
+      updateRecurrenceDraft(recurrenceKey, { saving: false });
+    }
+  };
+
+  const buildRecurrenceUpdatePayload = (draft: RecurrenceDraft) => {
+    const scheduled_at = draft.scheduledLocal
+    ? localDateToDB(draft.scheduledLocal)
+    : null;
+
+    const servicesPayload = (draft.services || []).map((service) => {
+      const quantity = Number(service.quantity || 0);
+      const unitPrice = Number(service.unit_price || 0);
+
+      return {
+        service_uuid: service.service_uuid ?? null,
+        code: service.code ?? null,
+        label: service.label ?? service.value ?? "Service",
+        value: service.value ?? service.label ?? "Service",
+        description: service.description ?? null,
+        unit: service.unit ?? null,
+        quantity,
+        unit_price: unitPrice,
+        line_total: round2(quantity * unitPrice),
+      };
+    });
+
+    const totals = calcTotals(servicesPayload);
+
+    return {
+      scheduled_at,
+      scheduled_window_mins: scheduled_at ? draft.scheduledWindowMins : null,
+      scheduled_window_preset: scheduled_at ? draft.windowPreset ?? "anytime" : null,
+      is_custom_schedule: true,
+      services: servicesPayload,
+      subtotal_amount: totals.subtotalAmount,
+      gst_amount: totals.gstAmount,
+      total_amount: totals.totalAmount,
+      pricing_source: "recurrence_override",
+      client_schedule_message: draft.clientScheduleMessage?.trim() || null,
+    };
+  };
+
+  const onResetRecurrenceScheduleToJobDefault = async (recurrence: JobRecurrenceRecord) => {
     if (!uuid) return;
 
     const recurrenceKey = getRecurrenceKey(recurrence);
@@ -1032,6 +1286,16 @@ export default function JobPage() {
           >
             Back to dashboard
           </Button>
+
+          {canCompleteJobDirectly ? (
+            <Button
+              variant="secondary"
+              onClick={goToCompleteJobPage}
+              disabled={saving || extending}
+            >
+              Complete job
+            </Button>
+          ) : null}
 
           <Button onClick={onSave} disabled={!canSave}>
             {saving ? "Saving..." : "Save job changes"}
@@ -1206,152 +1470,346 @@ export default function JobPage() {
               </div>
             ) : recurrences.length > 0 ? (
               <div className="space-y-3">
-                {recurrences.map((r) => {
-                  const recurrenceKey = getRecurrenceKey(r);
-                  const draft = recurrenceKey ? recurrenceDrafts[recurrenceKey] : undefined;
+            {recurrences.map((r) => {
+              const recurrenceKey = getRecurrenceKey(r);
+              const draft = recurrenceKey ? recurrenceDrafts[recurrenceKey] : undefined;
 
-                  const previewISO = draft?.scheduledLocal
-                    ? localDatetimeToISO(draft.scheduledLocal)
-                    : null;
+              const previewISO = draft?.scheduledLocal
+                ? localDatetimeToISO(draft.scheduledLocal)
+                : null;
 
-                  const previewWindow = previewISO
-                    ? getWindowPreview(
-                        previewISO,
-                        draft?.windowPreset ?? "anytime",
-                        draft?.scheduledWindowMins
-                      )
-                    : "—";
+              const previewWindow = getWindowPreview(
+                previewISO,
+                draft?.windowPreset ?? "anytime",
+                draft?.scheduledWindowMins
+              );
 
-                  return (
-                    <div
-                      key={recurrenceKey || String(r.id || Math.random())}
-                      className="space-y-4 rounded-xl border border-gray-200 p-4"
-                    >
-                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-semibold text-gray-900">
-                              Recurrence {r.uuid || (r.id ? `#${r.id}` : "")}
-                            </p>
-                            <Badge>{r.status || "unknown"}</Badge>
-                            {r.is_custom_schedule ? (
-                              <Badge>Custom schedule</Badge>
-                            ) : (
-                              <Badge>Job default</Badge>
-                            )}
-                            {r.is_completed ? <Badge>Completed</Badge> : null}
-                          </div>
-
-                          <p className="mt-1 text-sm text-gray-700">
-                            {r.scheduled_at ? formatDateTime(r.scheduled_at) : "No scheduled date"}
-                          </p>
-
-                          <p className="mt-1 text-xs text-gray-500">
-                            Arrival window:{" "}
-                            {r.scheduled_at
-                              ? getWindowPreview(
-                                  r.scheduled_at,
-                                  r.scheduled_window_preset ??
-                                    job.scheduled_window_preset ??
-                                    "anytime",
-                                  r.scheduled_window_mins ?? job.scheduled_window_mins ?? 240
-                                )
-                              : "—"}
-                          </p>
-                        </div>
+              return (
+                <div
+                  key={recurrenceKey || String(r.id || Math.random())}
+                  className="space-y-4 rounded-xl border border-gray-200 p-4"
+                >
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-gray-900">
+                          Recurrence {r.uuid || (r.id ? `#${r.id}` : "")}
+                        </p>
+                        <Badge>{r.status || "unknown"}</Badge>
+                        {r.is_custom_schedule ? (
+                          <Badge>Custom schedule</Badge>
+                        ) : (
+                          <Badge>Job default</Badge>
+                        )}
+                        {r.is_completed ? <Badge>Completed</Badge> : null}
                       </div>
 
-                      <div className="rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-900">
-                        <div>
-                          <span className="font-semibold">Pricing:</span>{" "}
-                          {formatMoney(r.total_amount ?? job.total_amount)} • Source:{" "}
-                          {r.pricing_source || "job default"}
-                        </div>
-                        {resolvedJobHasUrgentFee ? (
-                          <div className="mt-1">
-                            <span className="font-semibold">Urgent fee:</span>{" "}
-                            {formatMoney(resolvedJobUrgentFeeAmount)}
-                          </div>
-                        ) : null}
+                     <p className="mt-1 text-sm text-gray-700">
+                        {r.scheduled_at ? formatDate(r.scheduled_at) : "No scheduled date"}
+                      </p>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        Arrival window:{" "}
+                        {getWindowPreview(
+                          r.scheduled_at,
+                          r.scheduled_window_preset ??
+                            job.scheduled_window_preset ??
+                            "anytime",
+                          r.scheduled_window_mins ?? job.scheduled_window_mins ?? 240
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-900">
+                    <div>
+                      <span className="font-semibold">Pricing:</span>{" "}
+                      {formatMoney(draft?.totalAmount ?? r.total_amount ?? job.total_amount)} • Source:{" "}
+                      {r.pricing_source || "job default"}
+                    </div>
+                    {resolvedJobHasUrgentFee ? (
+                      <div className="mt-1">
+                        <span className="font-semibold">Urgent fee:</span>{" "}
+                        {formatMoney(resolvedJobUrgentFeeAmount)}
                       </div>
+                    ) : null}
+                  </div>
 
-                      <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
-                        <span className="font-semibold">Job location:</span> {jobAddress}
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                    <span className="font-semibold">Job location:</span> {jobAddress}
+                  </div>
+
+                  <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Services for this recurrence</p>
+                        <p className="text-xs text-gray-600">
+                          Remove one-off services or update quantity and price for this recurrence only.
+                        </p>
                       </div>
-
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <Field
-                          label="Override start"
-                          hint="Move only this recurrence without changing the whole job."
-                        >
-                          <input
-                            type="datetime-local"
-                            value={draft?.scheduledLocal || ""}
-                            onChange={(e) =>
-                              recurrenceKey &&
-                              updateRecurrenceDraft(recurrenceKey, {
-                                scheduledLocal: e.target.value,
-                                dirty: true,
-                              })
-                            }
-                            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700"
-                          />
-                        </Field>
-
-                        <Field label="Override window" hint="This applies only to this recurrence.">
-                          <select
-                            value={draft?.windowPreset ?? "anytime"}
-                            onChange={(e) => {
-                              const selected = WINDOW_OPTIONS.find(
-                                (o) => o.value === e.target.value
-                              );
-                              if (!recurrenceKey) return;
-                              updateRecurrenceDraft(recurrenceKey, {
-                                windowPreset: e.target.value,
-                                scheduledWindowMins: selected?.mins ?? 240,
-                                dirty: true,
-                              });
-                            }}
-                            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700"
+                      <Button
+                        variant="secondary"
+                        onClick={() => onResetRecurrenceServicesToJobDefault(r)}
+                        disabled={draft?.saving}
+                      >
+                        Reset services
+                      </Button>
+                    </div>
+                    {(draft?.services || []).length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                        <div className="divide-y divide-gray-100">
+                        {draft!.services.map((service, serviceIndex) => (
+                          <div
+                            key={`${service.service_uuid || service.code || "svc"}-${serviceIndex}`}
+                            className="relative p-4 pr-12"
                           >
-                            {WINDOW_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                      </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                recurrenceKey && removeRecurrenceService(recurrenceKey, serviceIndex)
+                              }
+                              disabled={draft?.saving}
+                              className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-gray-200 bg-white text-md font-medium text-gray-400 transition cursor-pointer hover:border-red-300 hover:text-red-600 disabled:opacity-50"
+                              aria-label={`Remove ${service.label || service.value || "service"}`}
+                              title="Remove service"
+                            >
+                              ❌
+                            </button>
 
-                      <div className="text-xs text-gray-600">
-                        Preview:{" "}
-                        <span className="font-medium text-gray-900">
-                          {previewISO
-                            ? `${new Date(previewISO).toLocaleString("en-NZ")} • ${previewWindow}`
-                            : "—"}
-                        </span>
-                      </div>
+                            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_64px_96px] lg:items-start">
+                              <div className="min-w-0 pr-2">
+                                <p className="text-sm font-medium text-gray-900">
+                                  {service.label || service.value || "Service"}
+                                </p>
+                                {service.description ? (
+                                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                                    {service.description}
+                                  </p>
+                                ) : null}
+                              </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          onClick={() => onSaveRecurrence(r)}
-                          disabled={!draft?.dirty || draft?.saving}
-                        >
-                          {draft?.saving ? "Saving..." : "Save recurrence"}
-                        </Button>
+                              <div>
+                                <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                                  Qty
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={service.quantity}
+                                  onChange={(e) => {
+                                  if (!recurrenceKey) return;
 
-                        <Button
-                          variant="secondary"
-                          onClick={() => onResetRecurrenceToJobDefault(r)}
-                          disabled={draft?.saving}
-                        >
-                          Reset to job default
-                        </Button>
+                                  const value = e.target.value;
+
+                                  updateRecurrenceService(recurrenceKey, serviceIndex, {
+                                    quantity: value === "" ? "" : Number(value),
+                                  });
+                                }}
+                              className="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700"
+                            />
+                          </div>
+
+                            <div>
+                              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                                Unit price
+                              </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={service.unit_price}
+                                  onChange={(e) => {
+                                  if (!recurrenceKey) return;
+
+                                  const value = e.target.value;
+
+                                  updateRecurrenceService(recurrenceKey, serviceIndex, {
+                                    unit_price: value === "" ? "" : Number(value),
+                                  });
+                                }}
+                                  className="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
+
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                            Subtotal
+                          </p>
+                          <p className="mt-1 text-base font-semibold text-gray-900">
+                            {formatMoney(draft?.subtotalAmount)}
+                          </p>
+                        </div>
+
+                          <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                              GST
+                            </p>
+                            <p className="mt-1 text-base font-semibold text-gray-900">
+                              {formatMoney(draft?.gstAmount)}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                              Total
+                            </p>
+                            <p className="mt-1 text-base font-semibold text-gray-900">
+                              {formatMoney(draft?.totalAmount)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-500">
+                          No services on this recurrence.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <Field
+                        label="Override start"
+                        hint="Move only this recurrence without changing the whole job."
+                      >
+                      <input
+                        type="date"
+                        value={draft?.scheduledLocal || ""}
+                        onChange={(e) =>
+                          recurrenceKey &&
+                          updateRecurrenceDraft(recurrenceKey, {
+                            scheduledLocal: e.target.value,
+                            dirty: true,
+                          })
+                        }
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700"
+                      />
+                    </Field>
+
+                      <Field label="Override window" hint="This applies only to this recurrence.">
+                        <select
+                          value={draft?.windowPreset ?? "anytime"}
+                          onChange={(e) => {
+                            const selected = WINDOW_OPTIONS.find(
+                              (o) => o.value === e.target.value
+                            );
+                            if (!recurrenceKey) return;
+                            updateRecurrenceDraft(recurrenceKey, {
+                              windowPreset: e.target.value,
+                              scheduledWindowMins: selected?.mins ?? 240,
+                              dirty: true,
+                            });
+                          }}
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700"
+                        >
+                          {WINDOW_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                    {job.is_recurring || hasRecurrences ? (
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                        This job should be completed from the recurrence cards below.
+                      </div>
+                    ) : null}
+                    <div className="text-xs text-gray-600">
+                      Preview:{" "}
+                      <span className="font-medium text-gray-900">
+                        {previewISO
+                          ? `${new Date(previewISO).toLocaleString("en-NZ")} • ${previewWindow}`
+                          : "—"}
+                      </span>
+                    </div>
+                    <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Message to client</p>
+                      <p className="mt-1 text-xs text-gray-600">
+                        This message will only be sent if you choose <span className="font-semibold">Update + notify client</span>.
+                      </p>
+                    </div>
+
+                    <textarea
+                      value={draft?.clientScheduleMessage || ""}
+                      onChange={(e) => {
+                        if (!recurrenceKey) return;
+
+                        updateRecurrenceDraft(recurrenceKey, {
+                          clientScheduleMessage: e.target.value,
+                          dirty: true,
+                        });
+                      }}
+                      placeholder="Add a message for this recurrence, for example: We have moved this visit to Tuesday afternoon."
+                      className="min-h-[110px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-700 focus:ring-1 focus:ring-green-700"
+                      disabled={draft?.saving}
+                    />
+
+                    {r.client_schedule_message ? (
+                      <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                        <p className="font-semibold">Last saved client message</p>
+                        <p className="mt-1 whitespace-pre-wrap">{r.client_schedule_message}</p>
+                        {r.client_schedule_message_sent_at ? (
+                          <p className="mt-1 text-[11px] text-blue-700">
+                            Sent: {formatDateTime(r.client_schedule_message_sent_at)}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        onClick={() => onUpdateRecurrenceOnly(r)}
+                        disabled={!draft?.dirty || draft?.saving}
+                      >
+                        {draft?.saving ? "Saving..." : "Update recurrence"}
+                      </Button>
+
+                      <Button
+                        variant="secondary"
+                        onClick={() => onUpdateRecurrenceAndNotifyClient(r)}
+                        disabled={!draft?.dirty || draft?.saving}
+                      >
+                        Update + notify client
+                      </Button>
+
+                      <Button
+                        variant="secondary"
+                        onClick={() => onResetRecurrenceScheduleToJobDefault(r)}
+                        disabled={draft?.saving}
+                      >
+                        Reset schedule
+                      </Button>
+
+                      <Button
+                        variant="secondary"
+                        onClick={() => onResetRecurrenceServicesToJobDefault(r)}
+                        disabled={draft?.saving}
+                      >
+                        Reset services
+                      </Button>
+
+                      {!r.is_completed ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => goToCompleteRecurrencePage(r.uuid)}
+                          disabled={draft?.saving}
+                        >
+                          Complete recurrence
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
                   );
                 })}
-
                 <div className="flex items-center justify-between pt-2">
                   <p className="text-xs text-gray-500">
                     Page {recurrencePagination.page} of {recurrencePagination.totalPages}
