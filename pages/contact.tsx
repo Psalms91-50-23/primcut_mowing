@@ -647,24 +647,36 @@ export default function ContactPage(props: Props) {
   };
 
   if (loading || customerLoading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
-        <p className="text-gray-700 text-base font-medium">Loading ...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-start text-black pb-5">
-      <div
-        className="absolute inset-0 bg-cover bg-center z-0"
-        style={{ backgroundImage: "url('/images/contact_us_1.png')" }}
-      />
-      <div className="absolute inset-0 bg-black/50 z-0"></div>
+    <div className="flex justify-center items-center h-screen">
+      <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
+      <p className="text-gray-700 text-base font-medium">Loading ...</p>
+    </div>
+  );
+}
 
-      <div className="relative z-10 w-full flex flex-col items-center pt-20 px-6 max-w-2xl">
-        <div className="sticky top-20 z-50 w-full">
+return (
+  <div className="relative min-h-screen w-full flex flex-col justify-start text-black pb-5">
+    {/* Background */}
+    <div
+      className="absolute inset-0 z-0 bg-cover bg-center"
+      style={{ backgroundImage: "url('/images/contact_us_1.png')" }}
+    />
+    <div className="absolute inset-0 z-0 bg-black/50"></div>
+
+    {/* Content wrapper */}
+    <div
+      className="relative z-10 w-full px-6"
+      style={{ paddingTop: "var(--nav-height)" }}
+    >
+      {/* Inner width controller */}
+      <div className="mx-auto w-full max-w-2xl flex flex-col items-center">
+
+        {/* Sticky top bar */}
+        <div
+          className="sticky z-50 w-full"
+          style={{ top: "var(--nav-height)" }}
+        >
           <div className="w-full backdrop-blur-md px-4 py-3 flex items-center justify-between text-white rounded-t-lg">
             <div></div>
 
@@ -684,20 +696,22 @@ export default function ContactPage(props: Props) {
           </div>
         </div>
 
-        <div className="relative w-full text-center space-y-2">
+        {/* Title section */}
+        <div className="w-full text-center space-y-2">
           <h1 className="text-3xl md:text-4xl font-bold mb-6 text-white">
             Contact Us
           </h1>
-          <p className="text-xl max-w-3xl italic font-bold md:text-xl text-gray-200 mb-4">
+          <p className="text-xl italic font-bold text-gray-200 mb-4">
             Our team strives to reply to all messages within 2 business working
             days.
           </p>
-          <p className="text-lg font-semibold text-gray-100 pb-6 sm:text-base">
+          <p className="text-lg font-semibold text-gray-100 pb-6">
             For an accurate quote, please send images.
           </p>
         </div>
 
-        <div className="w-full max-w-xl bg-white/90 rounded-lg p-4 mb-6 text-center shadow">
+        {/* Inquiry box */}
+        <div className="w-full bg-white/90 rounded-lg p-4 mb-6 text-center shadow">
           <p className="text-sm text-gray-700 mb-3">
             Not ready to upload images or need a quick answer?
           </p>
@@ -715,14 +729,16 @@ export default function ContactPage(props: Props) {
           </p>
         </div>
 
-        <div className="w-full max-w-xl">
+        {/* Header */}
+        <div className="w-full">
           <Header />
         </div>
 
+        {/* Form */}
         <form
           onSubmit={handleSubmit}
           autoComplete="off"
-          className="w-full max-w-xl bg-white/85 rounded-b-sm shadow space-y-4 pb-5 px-6 pt-5"
+          className="w-full bg-white/85 rounded-b-sm shadow space-y-4 pb-5 px-6 pt-5"
         >
           {formNotice && (
             <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -1272,8 +1288,10 @@ export default function ContactPage(props: Props) {
               </p>
             )}
           </div>
+
         </form>
       </div>
     </div>
+  </div>
   );
 }

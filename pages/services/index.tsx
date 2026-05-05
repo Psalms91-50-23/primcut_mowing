@@ -71,7 +71,7 @@ export default function ServicePage(props: Props) {
 
         const res = await fetch("/api/services", {
           method: "GET",
-          signal: controller.signal,
+          // signal: controller.signal,
         });
 
         const json = await res.json();

@@ -39,7 +39,6 @@ export default function InquiryDetail() {
         });
 
         const result = await res.json().catch(() => null);
-        console.log("fetch inquiry result:", result);
 
         if (!res.ok) {
           throw new Error(

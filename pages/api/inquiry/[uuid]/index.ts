@@ -18,7 +18,6 @@ export default async function handler(
 
     // ✅ GET → fetch inquiry
     if (req.method === "GET") {
-      console.log("get inquiry by uuid proxy");
       response = await fetch(backendUrl, {
         method: "GET",
         headers: {
@@ -44,7 +43,6 @@ export default async function handler(
     else {
       return res.status(405).json({ error: "Method not allowed" });
     }
-    console.log({response})
     const contentType = response.headers.get("content-type") || "";
 
     if (!contentType.includes("application/json")) {

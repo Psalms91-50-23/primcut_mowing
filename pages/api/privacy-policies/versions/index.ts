@@ -37,7 +37,6 @@ export default async function handler(
     }
 
     const data = JSON.parse(rawText);
-    console.log({data})
     return res.status(backendRes.status).json(data);
   } catch (error: unknown) {
     console.error("Privacy policy versions proxy error:", error);

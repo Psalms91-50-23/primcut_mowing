@@ -171,7 +171,7 @@ const Home: React.FC<Props> = () => {
           </div>
         )}
 
-        <div className="absolute inset-0 bg-black/55 transition duration-500 group-hover:bg-black/35" />
+        <div className="absolute inset-0 bg-black/45 transition duration-500 group-hover:bg-black/20" />
         {/* <div className="absolute inset-0 bg-black/55" /> */}
 
         <div className="relative z-10 flex min-h-[560px] sm:min-h-[650px] flex-col justify-center items-center text-center text-white px-6 py-16 sm:py-20">
@@ -392,8 +392,7 @@ const Home: React.FC<Props> = () => {
           Need Property Maintenance You Can Rely On?
         </h2>
         <p className="mt-4 text-lg text-white/80 max-w-2xl mx-auto">
-          Get in touch for exterior repairs, handyman work, lawns,
-          cleaning, and general property upkeep across the Hutt Valley.
+          Get in touch for exterior repairs, handyman work, lawns, and general property upkeep across the Hutt Valley.
         </p>
 
         <Link

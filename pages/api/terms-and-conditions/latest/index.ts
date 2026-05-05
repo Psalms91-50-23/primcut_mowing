@@ -10,7 +10,6 @@ export default async function handler(
 
   try {
     const backendUrl = process.env.BACKEND_URL;
-    console.log({backendUrl})
     if (!backendUrl) {
       return res.status(500).json({ error: "Missing BACKEND_URL base URL" });
     }
@@ -23,7 +22,6 @@ export default async function handler(
         },
       }
     );
-    console.log({response})
     const data = await response.json();
 
     if (!response.ok) {

@@ -4,7 +4,6 @@ const backendURL = process.env.BACKEND_URL;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { uuid } = req.query;
-  console.log("in schedule route")
   if (!uuid || typeof uuid !== "string") {
     return res.status(400).json({ error: "Invalid job UUID" });
   }
@@ -26,7 +25,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       body: JSON.stringify(req.body), // 👈 forwards job + recurrence object
     });
-    console.log(req.body, " nextjs api proxy for update jobs with recurrences")
     const contentType = backendRes.headers.get("content-type") || "";
 
     // Handle backend returning non-JSON safely

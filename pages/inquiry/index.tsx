@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Header from "@/components/headers/Header";
 import { useRouter } from "next/router";
+import { useAuth } from "../../context/AuthContext";
+import { useCustomer } from "@/context/CustomerContext";
+import { nzPhoneFromIntl } from "@/utils/phone";
 
 type ServiceOption = {
   uuid: string;
@@ -34,8 +37,15 @@ const formatCategoryLabel = (category: string) => {
   );
 };
 
+const getSafeString = (value: unknown): string =>
+  typeof value === "string" ? value.trim() : "";
+
 export default function InquiryPage() {
   const router = useRouter();
+  const { loading: authLoading } = useAuth();
+  const { customer, customerLoading } = useCustomer();
+
+  const [hasPrefilledCustomerData, setHasPrefilledCustomerData] = useState(false);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -53,6 +63,45 @@ export default function InquiryPage() {
   const [success, setSuccess] = useState(false);
   const [activeServiceCategory, setActiveServiceCategory] =
     useState<string>("all");
+
+  const resolvedFirstName = getSafeString(customer?.first_name);
+  const resolvedLastName = getSafeString(customer?.last_name);
+  const resolvedEmail = getSafeString(customer?.email);
+  const resolvedMobile =
+    nzPhoneFromIntl(
+      getSafeString(customer?.mobile_phone) || getSafeString(customer?.mobile)
+    ) || "";
+  const resolvedLandline =
+    nzPhoneFromIntl(
+      getSafeString(customer?.landline_phone) ||
+        getSafeString(customer?.landline)
+    ) || "";
+  const resolvedPhone = resolvedMobile || resolvedLandline || "";
+
+  useEffect(() => {
+    if (authLoading || customerLoading) return;
+    if (hasPrefilledCustomerData) return;
+    if (!customer) return;
+
+    setForm((prev) => ({
+      ...prev,
+      firstName: prev.firstName || resolvedFirstName,
+      lastName: prev.lastName || resolvedLastName,
+      email: prev.email || resolvedEmail,
+      phone: prev.phone || resolvedPhone,
+    }));
+
+    setHasPrefilledCustomerData(true);
+  }, [
+    authLoading,
+    customerLoading,
+    customer,
+    hasPrefilledCustomerData,
+    resolvedFirstName,
+    resolvedLastName,
+    resolvedEmail,
+    resolvedPhone,
+  ]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -192,10 +241,10 @@ export default function InquiryPage() {
 
       setSuccess(true);
       setForm({
-        firstName: "",
-        lastName: "",
-        email: "",
-        phone: "",
+        firstName: resolvedFirstName,
+        lastName: resolvedLastName,
+        email: resolvedEmail,
+        phone: resolvedPhone,
         services: [],
         message: "",
       });
@@ -207,6 +256,17 @@ export default function InquiryPage() {
       setLoading(false);
     }
   };
+
+  if ((authLoading || customerLoading) && services.length === 0) {
+    return (
+      <section className="flex justify-center items-center h-screen bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-green-700 border-t-transparent border-solid rounded-full animate-spin"></div>
+          <p className="text-gray-700 text-base font-medium">Loading...</p>
+        </div>
+      </section>
+    );
+  }
 
   if (isLoadingServices && services.length === 0) {
     return (
@@ -233,7 +293,10 @@ export default function InquiryPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-2xl">
-        <div className="sticky top-20 z-50 w-full bg-green-900/60 backdrop-blur-md px-4 py-3 flex items-center justify-between text-white">
+        <div
+          className="sticky z-50 w-full bg-green-900/60 backdrop-blur-md px-4 py-3 flex items-center justify-between text-white"
+          style={{ top: "var(--nav-height)" }}
+        >
           <h1 className="flex items-center font-bold m-0 p-0 text-lg sm:text-xl md:text-2xl">
             <span className="text-xl sm:text-2xl md:text-3xl translate-x-1">
               H

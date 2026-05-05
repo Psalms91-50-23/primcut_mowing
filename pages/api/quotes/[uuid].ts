@@ -9,7 +9,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const backendURL = process.env.BACKEND_URL;
   const cookieHeader = req.headers.cookie || "";
-  console.log({ uuid, action, cookieHeader });
 
   try {
     let backendRes: Response;

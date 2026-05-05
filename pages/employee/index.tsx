@@ -114,7 +114,6 @@ export default function EmployeeDashboard() {
     quoteLimit?: number,
     lengthOfDays?: number
   ) => {
-    console.log("draft quotes");
     if (fetchingDrafts || pageNumber > draftTotalPages) return;
     setFetchingDrafts(true);
     try {
@@ -123,7 +122,6 @@ export default function EmployeeDashboard() {
       );
       if (!res.ok) throw new Error("Failed to fetch draft quotes");
       const data = await res.json();
-      console.log({ data });
 
       setDraftQuotes((prev) => [...prev, ...data.quotes]);
       setDraftPage(data.page);
@@ -149,7 +147,6 @@ export default function EmployeeDashboard() {
       );
       if (!res.ok) throw new Error("Failed to fetch sent quotes");
       const data = await res.json();
-      console.log({ data }, " sent quotes");
 
       setSentQuotes((prev) => [...prev, ...data.quotes]);
       setSentPage(data.page);
@@ -170,7 +167,6 @@ export default function EmployeeDashboard() {
 
       if (!res.ok)
         throw new Error(data.error || "Failed to fetch expired quotes");
-      console.log({ data }, " expired quotes");
       setExpiredQuotes(data.quotes || []);
     } catch (err: any) {
       console.error("Error fetching expired quotes:", err.message || err);

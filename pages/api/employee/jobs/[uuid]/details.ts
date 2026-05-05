@@ -4,7 +4,6 @@ const backendURL = process.env.BACKEND_URL;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { uuid } = req.query;
- console.log({uuid}, " jobs details api route")
   if (!uuid || typeof uuid !== "string") {
     return res.status(400).json({ error: "Invalid job UUID" });
   }
@@ -31,7 +30,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const data = await backendRes.json();
-    console.log({data}, " nextjs api get detailed jobs")
     return res.status(backendRes.status).json(data);
   } catch (error: any) {
     console.error("Job details proxy error:", error);

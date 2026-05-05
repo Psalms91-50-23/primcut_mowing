@@ -17,7 +17,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // ✅ so you can see it in DevTools Network -> Response Headers
     res.setHeader("x-proxy-target", url);
-    // console.log("JOBS PROXY ->", url);
 
     const upstream = await fetch(url, {
       method: "GET",
@@ -30,7 +29,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const text = await upstream.text();
     res.status(upstream.status);
-    // console.log({res})
 
     try {
       return res.json(JSON.parse(text));

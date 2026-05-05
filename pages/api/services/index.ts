@@ -10,7 +10,6 @@ export default async function handler(
 
   try {
     const backendUrl = `${process.env.BACKEND_URL}/api/services`;
-    console.log({backendUrl}, " Fetching services from backend...");
 
     const response = await fetch(backendUrl, {
       method: "GET",

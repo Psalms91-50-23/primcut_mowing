@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const routePermissions = [
+type Role = "admin" | "owner" | "employee" | "customer";
+
+type RoutePermission = {
+  prefix: string;
+  allowedRoles: Role[];
+};
+
+const routePermissions: RoutePermission[] = [
   { prefix: "/dashboard/admin", allowedRoles: ["admin", "owner"] },
   { prefix: "/admin/terms/new", allowedRoles: ["admin", "owner"] },
-  { prefix: "/employee", allowedRoles: ["admin", "owner", "employee" ]},
+  { prefix: "/employee", allowedRoles: ["admin", "owner", "employee"] },
   { prefix: "/dashboard/owner", allowedRoles: ["owner"] },
   { prefix: "/dashboard/employee", allowedRoles: ["employee"] },
   { prefix: "/dashboard/customer", allowedRoles: ["customer"] },
 ];
 
-function getDefaultDashboardByRole(role: string) {
+function getDefaultDashboardByRole(role: Role | "") {
   switch (role) {
     case "admin":
       return "/dashboard/admin";
@@ -37,32 +44,39 @@ function isTokenExpired(token: string) {
   }
 }
 
+function redirectToAuth(request: NextRequest) {
+  const authUrl = new URL("/auth", request.url);
+  const redirectTarget = request.nextUrl.pathname + request.nextUrl.search;
+
+  if (
+    redirectTarget &&
+    redirectTarget.startsWith("/") &&
+    !redirectTarget.startsWith("/auth")
+  ) {
+    authUrl.searchParams.set("redirect", redirectTarget);
+  }
+
+  return NextResponse.redirect(authUrl);
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const accessToken = request.cookies.get("accessToken")?.value;
   const refreshToken = request.cookies.get("refreshToken")?.value;
-  const role = request.cookies.get("role")?.value || "";
+  const role = (request.cookies.get("role")?.value || "") as Role | "";
 
-  const hasValidAccessToken =
-    accessToken && !isTokenExpired(accessToken);
+  const hasValidAccessToken = !!accessToken && !isTokenExpired(accessToken);
 
-  // No session at all
-  // if (!hasValidAccessToken && !refreshToken) {
-  //   return NextResponse.redirect(new URL("/auth", request.url));
-  // }
   if (!hasValidAccessToken && !refreshToken) {
-  const authUrl = new URL("/auth", request.url);
-  authUrl.searchParams.set(
-    "redirect",
-    request.nextUrl.pathname + request.nextUrl.search
-  );
+    return redirectToAuth(request);
+  }
 
-  return NextResponse.redirect(authUrl);
-}
+  if (pathname === "/dashboard") {
+    if (!role) {
+      return redirectToAuth(request);
+    }
 
-  // Redirect /dashboard → correct role dashboard
-  if (pathname === "/dashboard" && role) {
     return NextResponse.redirect(
       new URL(getDefaultDashboardByRole(role), request.url)
     );
@@ -73,8 +87,9 @@ export function proxy(request: NextRequest) {
   );
 
   if (matchedRoute) {
-    // If role not yet known, let backend/AuthContext resolve it
-    if (!role) return NextResponse.next();
+    if (!role) {
+      return redirectToAuth(request);
+    }
 
     if (!matchedRoute.allowedRoles.includes(role)) {
       return NextResponse.redirect(

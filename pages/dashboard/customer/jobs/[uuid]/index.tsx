@@ -322,7 +322,6 @@ export default function CustomerJobViewPage() {
       const jobsPayload = await tryFetchJson([
         `/api/customers/uuid/${resolvedCustomer.uuid}/jobs`,
       ]);
-
       const jobs = toArray<JobRecord>(jobsPayload).map(normalizeJob);
       const matchedJob =
         jobs.find((item) => item.uuid === uuid && !item.is_deleted) || null;

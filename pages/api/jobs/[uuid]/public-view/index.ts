@@ -5,11 +5,6 @@ const backendURL = process.env.BACKEND_URL;
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { uuid } = req.query;
 
-  console.log("hitting public job view proxy", {
-    method: req.method,
-    uuid,
-  });
-
   if (!uuid || typeof uuid !== "string") {
     return res.status(400).json({ error: "Invalid job UUID" });
   }
@@ -44,8 +39,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const data = await backendRes.json();
-
-    console.log("public-view proxy response:", data);
 
     return res.status(backendRes.status).json(data);
   } catch (error: any) {

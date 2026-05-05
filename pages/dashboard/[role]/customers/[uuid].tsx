@@ -514,7 +514,6 @@ export default function CustomerPage() {
         : `/api/customers/uuid/${customer.uuid}/contacts`;
 
       const method = isEditing ? "PATCH" : "POST";
-      console.log([url])
       const res = await fetch(url, {
         method,
         credentials: "include",

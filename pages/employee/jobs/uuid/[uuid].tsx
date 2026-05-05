@@ -544,7 +544,6 @@ export default function JobPage() {
       if (!res.ok) throw new Error(data?.error || "Failed to load job");
 
       const j = (data.job || null) as JobRecord;
-      console.log({j})
       setJob(j);
       setScheduledDateLocal(toDateLocalValue(j?.scheduled_at));
       setScheduledWindowMins(clampWindowMins(j?.scheduled_window_mins, 240));
@@ -814,8 +813,6 @@ export default function JobPage() {
       const recurrence_end_date =
         recurrencePreset !== "one_off" ? localDateToDB(endDateLocal) : null;
       
-      console.log("PATCHING SCHEDULE", `/api/employee/jobs/${uuid}/schedule`);
-
       const res = await fetch(`/api/employee/jobs/${uuid}/schedule`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -876,7 +873,6 @@ export default function JobPage() {
     setSuccessMsg(null);
 
     try {
-      console.log("PATCHING SCHEDULE on clear", `/api/employee/jobs/${uuid}/schedule`);
 
       const res = await fetch(`/api/employee/jobs/${uuid}/schedule`, {
         method: "PATCH",
@@ -929,7 +925,6 @@ export default function JobPage() {
     setSuccessMsg(null);
 
     try {
-      console.log("PATCHING SCHEDULE POST", `/api/employee/jobs/${uuid}/schedule`);
       const res = await fetch(`/api/employee/jobs/${uuid}/recurrences/extend`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1176,7 +1171,6 @@ export default function JobPage() {
     setSuccessMsg(null);
 
     try {
-      console.log("PATCHING SCHEDULE onResetRecurrenceToJobDefault", `/api/employee/jobs/${uuid}/schedule`);
       const res = await fetch(`/api/employee/jobs/${uuid}/schedule`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

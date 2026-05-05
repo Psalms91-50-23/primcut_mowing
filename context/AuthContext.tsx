@@ -4,6 +4,9 @@ import {
   useEffect,
   useState,
   ReactNode,
+  useCallback,
+  useRef,
+  useMemo,
 } from "react";
 import { useRouter } from "next/router";
 
@@ -52,158 +55,209 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserType | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+
   const router = useRouter();
 
-  const fetchUser = async (): Promise<UserType | null> => {
-    setLoading(true);
+  const isMountedRef = useRef(true);
+  const fetchInFlightRef = useRef<Promise<UserType | null> | null>(null);
+  const hasInitialFetchRunRef = useRef(false);
 
-    try {
-      const res = await fetch(`/api/users/auth/me`, {
-        method: "GET",
-        credentials: "include",
-      });
+  const clearAuthState = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setUser(null);
+    setRole(null);
+  }, []);
 
-      if (!res.ok) {
-        setUser(null);
-        setRole(null);
+  const fetchUser = useCallback(async (): Promise<UserType | null> => {
+    if (fetchInFlightRef.current) {
+      return fetchInFlightRef.current;
+    }
+
+    const run = (async () => {
+      if (isMountedRef.current) {
+        setLoading(true);
+      }
+
+      try {
+        const res = await fetch(`/api/users/auth/me`, {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+        });
+
+        if (!res.ok) {
+          clearAuthState();
+          return null;
+        }
+
+        let json: any = null;
+
+        try {
+          json = await res.json();
+        } catch {
+          clearAuthState();
+          return null;
+        }
+
+        if (!json?.user) {
+          clearAuthState();
+          return null;
+        }
+
+        const fetchedUser = json.user as UserType;
+        const userRole = fetchedUser?.role ?? null;
+
+        if (!isMountedRef.current) {
+          return fetchedUser;
+        }
+
+        setUser(fetchedUser);
+        setRole(userRole);
+
+        return fetchedUser;
+      } catch (err) {
+        console.error("fetchUser failed", err);
+        clearAuthState();
         return null;
+      } finally {
+        fetchInFlightRef.current = null;
+
+        if (isMountedRef.current) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    fetchInFlightRef.current = run;
+    return run;
+  }, [clearAuthState]);
+
+  const login = useCallback(
+    async (
+      email: string,
+      password: string,
+      recaptchaToken: string
+    ): Promise<UserType | null> => {
+      if (isMountedRef.current) {
+        setLoading(true);
       }
 
-      const json = await res.json();
+      try {
+        const res = await fetch("/api/users/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ email, password, recaptchaToken }),
+        });
 
-      if (!json?.user) {
-        setUser(null);
-        setRole(null);
-        return null;
+        let data: any = null;
+
+        try {
+          data = await res.json();
+        } catch {
+          // backend returned no JSON
+        }
+
+        if (!res.ok) {
+          throw new Error(data?.error || data?.message || "Login failed");
+        }
+
+        const fetchedUser = await fetchUser();
+
+        if (!fetchedUser) {
+          throw new Error("Login succeeded but user could not be fetched");
+        }
+
+        return fetchedUser;
+      } finally {
+        if (isMountedRef.current) {
+          setLoading(false);
+        }
       }
+    },
+    [fetchUser]
+  );
 
-      const fetchedUser = json.user as UserType;
-      const userRole = fetchedUser?.role ?? null;
-
-      setUser(fetchedUser);
-      setRole(userRole);
-
-      if (router.pathname === "/" && userRole && roleRedirectMap[userRole]) {
-        router.replace(roleRedirectMap[userRole]);
-      }
-
-      return fetchedUser;
-    } catch (err) {
-      console.error("fetchUser failed", err);
-      setUser(null);
-      setRole(null);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const login = async (
-    email: string,
-    password: string,
-    recaptchaToken: string
-  ): Promise<UserType | null> => {
-    const res = await fetch("/api/users/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password, recaptchaToken }),
-    });
-
-    let data: any = null;
-
+  const logout = useCallback(async () => {
     try {
-      data = await res.json();
-    } catch {
-      // backend returned no JSON
-    }
+      if (isMountedRef.current) {
+        setLoading(true);
+      }
 
-    if (!res.ok) {
-      throw new Error(data?.error || data?.message || "Login failed");
-    }
-
-    const fetchedUser = await fetchUser();
-
-    if (!fetchedUser) {
-      throw new Error("Login succeeded but user could not be fetched");
-    }
-
-    return fetchedUser;
-  };
-
-  const logout = async () => {
-    try {
       await fetch(`/api/users/auth/logout`, {
         method: "POST",
         credentials: "include",
       });
-      router.replace("/auth");
     } catch (err) {
       console.error("logout failed", err);
     } finally {
-      setUser(null);
-      setRole(null);
-      setLoading(false);
+      clearAuthState();
+
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+
+      if (router.asPath !== "/auth") {
+        router.replace("/auth");
+      }
     }
-  };
+  }, [clearAuthState, router]);
 
-  const hasRole = (roles: string | string[]): boolean => {
-    if (!user || !role) return false;
-    if (typeof roles === "string") return role === roles;
-    return roles.includes(role);
-  };
-
-  // useEffect(() => {
-  //   const initAuth = async () => {
-  //     setLoading(true);
-
-  //     try {
-  //       const res = await fetch(`/api/users/auth/check`, {
-  //         credentials: "include",
-  //       });
-
-  //       const data = await res.json();
-
-  //       if (data?.loggedIn) {
-  //         await fetchUser();
-  //       } else {
-  //         setUser(null);
-  //         setRole(null);
-  //       }
-  //     } catch (err) {
-  //       setUser(null);
-  //       setRole(null);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-
-  //   initAuth();
-  // }, []);
+  const hasRole = useCallback(
+    (roles: string | string[]): boolean => {
+      if (!user || !role) return false;
+      if (typeof roles === "string") return role === roles;
+      return roles.includes(role);
+    },
+    [user, role]
+  );
 
   useEffect(() => {
-    const initAuth = async () => {
-      await fetchUser();
+    isMountedRef.current = true;
+
+    if (!hasInitialFetchRunRef.current) {
+      hasInitialFetchRunRef.current = true;
+      fetchUser();
+    }
+
+    return () => {
+      isMountedRef.current = false;
     };
+  }, [fetchUser]);
 
-    initAuth();
-  }, []);
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (loading) return;
+    if (!role) return;
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        role,
-        loading,
-        logout,
-        hasRole,
-        fetchUser,
-        login,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+    const target = roleRedirectMap[role];
+    if (!target) return;
+
+    const isHomeRoute = router.pathname === "/";
+    const alreadyAtTarget =
+      router.pathname === target || router.asPath === target;
+
+    if (isHomeRoute && !alreadyAtTarget) {
+      router.replace(target);
+    }
+  }, [router.isReady, router.pathname, router.asPath, loading, role, router]);
+
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      role,
+      loading,
+      logout,
+      hasRole,
+      fetchUser,
+      login,
+    }),
+    [user, role, loading, logout, hasRole, fetchUser, login]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 /**

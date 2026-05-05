@@ -186,7 +186,6 @@ export default function EmployeeQuotePage() {
 
         const data = await res.json();
         const quoteData = data?.quote ?? data;
-        console.log({ quoteData });
 
         const services = (quoteData.services || []).map((s: any) => ({
           value: s.value || s.code || "",

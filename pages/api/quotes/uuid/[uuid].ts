@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         method: "GET",
         headers: { 
             "Content-Type": "application/json" ,
-            "Cookie": req.headers.cookie || "", // <-- forward cookies
+            "Cookie": req.headers.cookie || "", 
         },
         }
     );

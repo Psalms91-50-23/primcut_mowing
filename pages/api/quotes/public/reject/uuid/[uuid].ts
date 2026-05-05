@@ -22,7 +22,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 },
             );
         const data = await backendRes.json();
-        console.log({data})
         return res.status(backendRes.status).json(data);
     } catch (err) {
         res.status(500).json({ error: 'Internal server error' });

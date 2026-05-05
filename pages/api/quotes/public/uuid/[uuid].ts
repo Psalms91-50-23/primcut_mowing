@@ -32,7 +32,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (setCookies) {
         res.setHeader("Set-Cookie", setCookies);
     }
-    console.log({data}, " public api quotes")
     return res.status(backendRes.status).json(data);
     } catch (err) {
     console.error("API GET quote error:", err);

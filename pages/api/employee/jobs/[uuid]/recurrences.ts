@@ -4,7 +4,6 @@ const backendURL = process.env.BACKEND_URL;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { uuid, page = "1", limit = "5" } = req.query;
-    console.log("hitting recurrence backend nextjs proxy")
   if (!uuid || typeof uuid !== "string") {
     return res.status(400).json({ error: "Invalid job UUID" });
   }

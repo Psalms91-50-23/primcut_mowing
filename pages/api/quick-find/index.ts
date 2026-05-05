@@ -95,8 +95,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       result = data?.job?.job ?? data?.job ?? null;
     }
 
-    console.log({ result }, "nextjs proxy quick-find ->");
-
     return res.status(200).json({ result });
   } catch (err: any) {
     console.error("quick-find proxy error:", err);
