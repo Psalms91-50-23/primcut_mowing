@@ -102,7 +102,7 @@ const NavBar = () => {
               <img
                 src="/images/happy-house-1.png"
                 alt="Happy property house"
-                className="block h-9 w-10 shrink-0 pl-1 sm:h-12 sm:w-14 sm:pl-2"
+                className="block h-9 w-10 shrink-0 sm:h-12 sm:w-14 sm:pl-1"
               />
               <span className="truncate text-xl sm:text-3xl">ppy Property</span>
             </h1>
