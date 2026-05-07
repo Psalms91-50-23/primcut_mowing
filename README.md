@@ -38,7 +38,7 @@ Clone the repository and install dependencies:
 
 ```bash
 npm install
-copy .env.example .env.local
+cp .env.example .env.local
 
 windows cmd
 copy .env.example .env.local
