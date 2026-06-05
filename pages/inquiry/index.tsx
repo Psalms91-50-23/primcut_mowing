@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { useAuth } from "../../context/AuthContext";
 import { useCustomer } from "@/context/CustomerContext";
 import { nzPhoneFromIntl } from "@/utils/phone";
+import { SERVICES } from "@/data/services";
 
 type ServiceOption = {
   uuid: string;
@@ -133,41 +134,66 @@ export default function InquiryPage() {
   };
 
   useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        setIsLoadingServices(true);
+     const loadServicesFromJson = () => {
+    try {
+      setIsLoadingServices(true);
 
-        const res = await fetch("/api/services", {
-          method: "GET",
-        });
+      const mappedServices = SERVICES.filter(
+        (service) => service.is_active && !service.is_deleted
+      ).map((service) => ({
+        uuid: service.uuid,
+        code: service.code,
+        label: service.label,
+        description: service.description ?? null,
+        category: service.category ?? null,
+        requires_images: Boolean(service.requires_images),
+      }));
 
-        const result = await res.json();
+      setServices(mappedServices);
+    } catch (error) {
+      console.error("Failed to load services from JSON object:", error);
+      setServices([]);
+    } finally {
+      setIsLoadingServices(false);
+    }
+  };
 
-        if (!res.ok) {
-          throw new Error(result?.error || "Failed to load services");
-        }
+  loadServicesFromJson();
+    // const fetchServices = async () => {
+    //   try {
+    //     setIsLoadingServices(true);
 
-        const serviceRows = Array.isArray(result?.data) ? result.data : [];
+    //     const res = await fetch("/api/services", {
+    //       method: "GET",
+    //     });
 
-        const mappedServices = serviceRows.map((service: any) => ({
-          uuid: service.uuid,
-          code: service.code,
-          label: service.label,
-          description: service.description ?? null,
-          category: service.category ?? null,
-          requires_images: Boolean(service.requires_images),
-        }));
+    //     const result = await res.json();
 
-        setServices(mappedServices);
-      } catch (error) {
-        console.error("Failed to fetch services:", error);
-        setServices([]);
-      } finally {
-        setIsLoadingServices(false);
-      }
-    };
+    //     if (!res.ok) {
+    //       throw new Error(result?.error || "Failed to load services");
+    //     }
 
-    fetchServices();
+    //     const serviceRows = Array.isArray(result?.data) ? result.data : [];
+
+    //     const mappedServices = serviceRows.map((service: any) => ({
+    //       uuid: service.uuid,
+    //       code: service.code,
+    //       label: service.label,
+    //       description: service.description ?? null,
+    //       category: service.category ?? null,
+    //       requires_images: Boolean(service.requires_images),
+    //     }));
+
+    //     setServices(mappedServices);
+    //   } catch (error) {
+    //     console.error("Failed to fetch services:", error);
+    //     setServices([]);
+    //   } finally {
+    //     setIsLoadingServices(false);
+    //   }
+    // };
+
+    // fetchServices();
   }, []);
 
   const selectedServices = useMemo(
@@ -317,7 +343,7 @@ export default function InquiryPage() {
                 router.push("/");
               }
             }}
-            className="inline-flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 cursor-pointer transition hover:bg-white active:scale-[0.98]"
+           className="md:hidden inline-flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 cursor-pointer transition hover:bg-white active:scale-[0.98]"
           >
             ← Back
           </button>

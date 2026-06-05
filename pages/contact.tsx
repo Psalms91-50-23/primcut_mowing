@@ -7,7 +7,7 @@ import GoogleAddressAutocomplete from "@/components/GoogleAddressAutocomplete";
 import { nzPhoneFromIntl } from "@/utils/phone";
 import { useCustomer } from "@/context/CustomerContext";
 import { useRouter } from "next/router";
-
+import { SERVICES } from "@/data/services";
 type Props = {};
 
 type DynamicImageInput = {
@@ -299,46 +299,73 @@ export default function ContactPage(props: Props) {
   ]);
 
   useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        setIsLoadingServices(true);
 
-        const res = await fetch("/api/services", {
-          method: "GET",
-        });
+    const loadServicesFromJson = () => {
+    try {
+      setIsLoadingServices(true);
 
-        const result = await res.json();
+      const mappedServices: ServiceOption[] = SERVICES.map((service) => ({
+        uuid: service.uuid,
+        code: service.code,
+        label: service.label,
+        description: service.description ?? null,
+        category: service.category ?? null,
+        requires_images: Boolean(service.requires_images),
+        urgent_allowed: Boolean(service.urgent_allowed),
+        selected: false,
+      }));
 
-        if (!res.ok) {
-          throw new Error(result?.error || "Failed to load services");
-        }
+      setServices(mappedServices);
+    } catch (error) {
+      console.error("Failed to load services from JSON object:", error);
+      setServices([]);
+      toast.error("Failed to load services. Please refresh the page.");
+    } finally {
+      setIsLoadingServices(false);
+    }
+  };
 
-        const serviceRows = Array.isArray(result?.data) ? result.data : [];
+  loadServicesFromJson();
+    // const fetchServices = async () => {
+    //   try {
+    //     setIsLoadingServices(true);
 
-        const mappedServices: ServiceOption[] = serviceRows.map(
-          (service: any) => ({
-            uuid: service.uuid,
-            code: service.code,
-            label: service.label,
-            description: service.description ?? null,
-            category: service.category ?? null,
-            requires_images: Boolean(service.requires_images),
-            urgent_allowed: Boolean(service.urgent_allowed),
-            selected: false,
-          })
-        );
+    //     const res = await fetch("/api/services", {
+    //       method: "GET",
+    //     });
 
-        setServices(mappedServices);
-      } catch (error) {
-        console.error("Failed to fetch services:", error);
-        setServices([]);
-        toast.error("Failed to load services. Please refresh the page.");
-      } finally {
-        setIsLoadingServices(false);
-      }
-    };
+    //     const result = await res.json();
 
-    fetchServices();
+    //     if (!res.ok) {
+    //       throw new Error(result?.error || "Failed to load services");
+    //     }
+
+    //     const serviceRows = Array.isArray(result?.data) ? result.data : [];
+
+    //     const mappedServices: ServiceOption[] = serviceRows.map(
+    //       (service: any) => ({
+    //         uuid: service.uuid,
+    //         code: service.code,
+    //         label: service.label,
+    //         description: service.description ?? null,
+    //         category: service.category ?? null,
+    //         requires_images: Boolean(service.requires_images),
+    //         urgent_allowed: Boolean(service.urgent_allowed),
+    //         selected: false,
+    //       })
+    //     );
+
+    //     setServices(mappedServices);
+    //   } catch (error) {
+    //     console.error("Failed to fetch services:", error);
+    //     setServices([]);
+    //     toast.error("Failed to load services. Please refresh the page.");
+    //   } finally {
+    //     setIsLoadingServices(false);
+    //   }
+    // };
+
+    // fetchServices();
   }, []);
 
   useEffect(() => {
@@ -677,23 +704,21 @@ return (
           className="sticky z-50 w-full"
           style={{ top: "var(--nav-height)" }}
         >
-          <div className="w-full backdrop-blur-md px-4 py-3 flex items-center justify-between text-white rounded-t-lg">
-            <div></div>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (window.history.length > 1) {
-                  router.back();
-                } else {
-                  router.push("/");
-                }
-              }}
-              className="inline-flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 transition hover:bg-white active:scale-[0.98] hover:cursor-pointer"
-            >
-              ← Back
-            </button>
-          </div>
+          <div className="block md:hidden">
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/");
+              }
+            }}
+            className="inline-flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 transition hover:bg-white active:scale-[0.98] hover:cursor-pointer"
+          >
+            ← Back
+          </button>
+        </div>
         </div>
 
         {/* Title section */}

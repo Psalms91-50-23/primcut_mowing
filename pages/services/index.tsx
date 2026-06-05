@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "../../context/AuthContext";
+import { SERVICES } from "@/data/services";
 
 type Props = {};
 
@@ -62,41 +63,67 @@ export default function ServicePage(props: Props) {
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
   useEffect(() => {
-    const controller = new AbortController();
+    // const controller = new AbortController();
+    const loadServicesFromJson = () => {
+    try {
+      setServicesLoading(true);
+      setServicesError(null);
 
-    const fetchServices = async () => {
-      try {
-        setServicesLoading(true);
-        setServicesError(null);
+      const localServices: Service[] = SERVICES.filter(
+        (service) => service.is_active && !service.is_deleted
+      ).map((service) => ({
+        uuid: service.uuid,
+        code: service.code,
+        label: service.label,
+        description: service.description ?? "",
+        category: service.category ?? "",
+        requires_images: Boolean(service.requires_images),
+      }));
 
-        const res = await fetch("/api/services", {
-          method: "GET",
-          // signal: controller.signal,
-        });
+      setServices(localServices);
+    } catch (err: any) {
+      console.error("Failed to load local services:", err);
+      setServices([]);
+      setServicesError(err?.message || "Failed to load services");
+    } finally {
+      setServicesLoading(false);
+    }
+  };
 
-        const json = await res.json();
+  loadServicesFromJson();
+    // const fetchServices = async () => {
+    //   try {
+    //     setServicesLoading(true);
+    //     setServicesError(null);
 
-        if (!res.ok) {
-          throw new Error(json?.error || "Failed to fetch services");
-        }
+    //     const res = await fetch("/api/services", {
+    //       method: "GET",
+    //       // signal: controller.signal,
+    //     });
 
-        const incomingServices = Array.isArray(json?.data) ? json.data : [];
+    //     const json = await res.json();
 
-        setServices(incomingServices);
-      } catch (err: any) {
-        if (err?.name === "AbortError") return;
+    //     if (!res.ok) {
+    //       throw new Error(json?.error || "Failed to fetch services");
+    //     }
 
-        console.error("Failed to fetch services:", err);
-        setServices([]);
-        setServicesError(err?.message || "Failed to load services");
-      } finally {
-        setServicesLoading(false);
-      }
-    };
+    //     const incomingServices = Array.isArray(json?.data) ? json.data : [];
 
-    fetchServices();
+    //     setServices(incomingServices);
+    //   } catch (err: any) {
+    //     if (err?.name === "AbortError") return;
 
-    return () => controller.abort();
+    //     console.error("Failed to fetch services:", err);
+    //     setServices([]);
+    //     setServicesError(err?.message || "Failed to load services");
+    //   } finally {
+    //     setServicesLoading(false);
+    //   }
+    // };
+
+    // fetchServices();
+
+    // return () => controller.abort();
   }, []);
 
   const categories = useMemo(() => {
