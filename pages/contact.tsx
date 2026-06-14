@@ -939,7 +939,7 @@ return (
               autoComplete="off"
               value={formData.message}
               onChange={handleChange}
-              className="input-border w-full border px-3 py-2 rounded resize-none bg-white overflow-y-scroll overflow-x-hidden"
+              className="input-border w-full border px-3 py-2 rounded resize-y bg-white overflow-y-scroll overflow-x-hidden"
               placeholder="Write any additional details here..."
               rows={5}
               required
