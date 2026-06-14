@@ -8,7 +8,12 @@ import { nzPhoneFromIntl } from "@/utils/phone";
 import { useCustomer } from "@/context/CustomerContext";
 import { useRouter } from "next/router";
 import { SERVICES } from "@/data/services";
-type Props = {};
+import ImageUploader from "@/components/ImageUploader";
+import RecurrenceSelector from "@/components/RecurrenceSelector";
+import ContactTextInput from "@/components/ContactTextInputProps";
+import PrivacyConsent from "@/components/PrivacyConsent";
+import ServiceSelector from "@/components/ServiceSelector";
+import UrgentBookingSection from "@/components/UrgentBookingSection";
 
 type DynamicImageInput = {
   id: string;
@@ -112,7 +117,7 @@ const createInitialImageRows = (): DynamicImageInput[] =>
 const getSafeString = (value: unknown): string =>
   typeof value === "string" ? value.trim() : "";
 
-export default function ContactPage(props: Props) {
+export default function ContactPage() {
   const { loading } = useAuth();
   const { customer, customerLoading } = useCustomer();
   const [hasPrefilledCustomerData, setHasPrefilledCustomerData] = useState(false);
@@ -326,46 +331,7 @@ export default function ContactPage(props: Props) {
   };
 
   loadServicesFromJson();
-    // const fetchServices = async () => {
-    //   try {
-    //     setIsLoadingServices(true);
-
-    //     const res = await fetch("/api/services", {
-    //       method: "GET",
-    //     });
-
-    //     const result = await res.json();
-
-    //     if (!res.ok) {
-    //       throw new Error(result?.error || "Failed to load services");
-    //     }
-
-    //     const serviceRows = Array.isArray(result?.data) ? result.data : [];
-
-    //     const mappedServices: ServiceOption[] = serviceRows.map(
-    //       (service: any) => ({
-    //         uuid: service.uuid,
-    //         code: service.code,
-    //         label: service.label,
-    //         description: service.description ?? null,
-    //         category: service.category ?? null,
-    //         requires_images: Boolean(service.requires_images),
-    //         urgent_allowed: Boolean(service.urgent_allowed),
-    //         selected: false,
-    //       })
-    //     );
-
-    //     setServices(mappedServices);
-    //   } catch (error) {
-    //     console.error("Failed to fetch services:", error);
-    //     setServices([]);
-    //     toast.error("Failed to load services. Please refresh the page.");
-    //   } finally {
-    //     setIsLoadingServices(false);
-    //   }
-    // };
-
-    // fetchServices();
+    
   }, []);
 
   useEffect(() => {
@@ -773,32 +739,22 @@ return (
 
           <div className="flex flex-row gap-4">
             <div className="w-1/2">
-              <label htmlFor="firstName" className="block font-medium mb-1 py-2">
-                First Name
-              </label>
-              <input
+              <ContactTextInput
+                label="First Name"
                 name="firstName"
-                type="text"
-                autoComplete="off"
                 value={formData.firstName}
                 onChange={handleChange}
-                className="input-border w-full border px-3 py-2 rounded bg-white"
                 placeholder="Enter your first name"
                 required
               />
             </div>
 
             <div className="w-1/2">
-              <label htmlFor="lastName" className="block font-medium mb-1 py-2">
-                Last Name
-              </label>
-              <input
+              <ContactTextInput
+                label="Last Name"
                 name="lastName"
-                type="text"
-                autoComplete="off"
                 value={formData.lastName}
                 onChange={handleChange}
-                className="input-border w-full border px-3 py-2 rounded bg-white"
                 placeholder="Enter your last name"
                 required
               />
@@ -881,53 +837,11 @@ return (
             />
           </div>
 
-          <div>
-            <label className="block font-medium mb-2 py-2">
-              How often would you like the service?
-            </label>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {RECURRENCE_OPTIONS.map((option) => {
-                const isSelected =
-                  formData.recurrenceFrequency === option.value;
-
-                return (
-                  <label
-                    key={option.value}
-                    className={`rounded border px-4 py-3 bg-white transition hover:cursor-pointer ${
-                      isSelected
-                        ? "border-green-700 ring-1 ring-green-700"
-                        : "border-gray-300 hover:border-gray-400"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <input
-                        type="radio"
-                        name="recurrenceFrequency"
-                        value={option.value}
-                        checked={isSelected}
-                        onChange={() => handleRecurrenceChange(option.value)}
-                        className="mt-1 hover:cursor-pointer"
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-medium text-sm sm:text-base">
-                          {option.label}
-                        </span>
-                        <span className="text-xs sm:text-sm text-gray-600">
-                          {option.description}
-                        </span>
-                      </div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-
-            <p className="text-xs italic text-gray-600 pt-2">
-              Choose one-off for a single visit, or select a recurring option
-              for regular ongoing work.
-            </p>
-          </div>
+          <RecurrenceSelector
+            value={formData.recurrenceFrequency}
+            options={RECURRENCE_OPTIONS}
+            onChange={handleRecurrenceChange}
+          />
 
           <div>
             <label htmlFor="message" className="block font-medium mb-1 py-2">
@@ -946,351 +860,46 @@ return (
             />
           </div>
 
-          <div className="space-y-4">
-            <div className="flex flex-col gap-2">
-              <label className="text-lg py-1 block">Select Services</label>
-              <p className="text-sm text-gray-600">
-                Selected services stay at the top and can be removed without scrolling.
-              </p>
-            </div>
+          <ServiceSelector
+            services={services}
+            categories={categories}
+            filteredServices={filteredServices}
+            selectedServices={selectedServices}
+            selectedServicesCount={selectedServicesCount}
+            countsByCategory={countsByCategory}
+            activeServiceCategory={activeServiceCategory}
+            isLoadingServices={isLoadingServices}
+            shouldServicesScroll={shouldServicesScroll}
+            onCategoryChange={setActiveServiceCategory}
+            onServiceChange={handleServiceChange}
+            onClearAll={handleClearAllServices}
+            formatCategoryLabel={formatCategoryLabel}
+          />
+          <UrgentBookingSection
+            isUrgent={isUrgent}
+            onUrgentChange={setIsUrgent}
+            hasSelectedServices={hasSelectedServices}
+            allSelectedAllowUrgent={allSelectedAllowUrgent}
+            hasMultipleSelectedServices={hasMultipleSelectedServices}
+            hasMixedUrgentEligibility={hasMixedUrgentEligibility}
+            urgentFeeAmount={URGENT_FEE_AMOUNT}
+          />
+          <ImageUploader
+            images={imageInputs}
+            maxImages={MAX_IMAGE_UPLOADS}
+            imageInputKey={imageInputKey}
+            canAddMoreImages={canAddMoreImages}
+            onLabelChange={handleImageLabelChange}
+            onFileChange={handleImageFileChange}
+            onAddImage={handleAddImageSlot}
+            onRemoveImage={handleRemoveImageSlot}
+            onOpenPreview={handleOpenPreview}
+          />
 
-            {isLoadingServices ? (
-              <div className="text-sm text-gray-600">Loading services...</div>
-            ) : services.length === 0 ? (
-              <div className="text-sm text-red-600">
-                No services available right now.
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  {categories.map((cat) => {
-                    const active = cat === activeServiceCategory;
-                    const hasSelectedInCategory =
-                      cat === "all"
-                        ? selectedServices.length > 0
-                        : services.some(
-                            (service) =>
-                              service.category === cat && service.selected
-                          );
-
-                    return (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setActiveServiceCategory(cat)}
-                        className={[
-                          "px-4 py-2 rounded-full text-sm font-semibold transition border hover:cursor-pointer",
-                          active
-                            ? "bg-green-700 text-white border-green-700 shadow"
-                            : hasSelectedInCategory
-                            ? "bg-green-50 text-green-800 border-green-300"
-                            : "bg-white text-gray-800 border-gray-200 hover:border-green-300 hover:ring-2 hover:ring-green-200",
-                        ].join(" ")}
-                      >
-                        {cat === "all" ? "All Services" : formatCategoryLabel(cat)}
-                        <span className="ml-2 opacity-80">
-                          ({countsByCategory[cat] || 0})
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="flex items-center justify-between rounded border border-gray-200 bg-white px-4 py-3">
-                  <div className="text-sm font-medium text-gray-700">
-                    {selectedServicesCount > 0
-                      ? `${selectedServicesCount} service${
-                          selectedServicesCount > 1 ? "s" : ""
-                        } selected`
-                      : "Choose one or more services"}
-                  </div>
-
-                  {selectedServicesCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleClearAllServices}
-                      className="text-sm font-medium text-red-600 hover:text-red-700 hover:underline hover:cursor-pointer"
-                    >
-                      Clear all
-                    </button>
-                  )}
-                </div>
-
-                {selectedServicesCount > 0 && (
-                  <div className="rounded-xl border border-green-200 bg-green-50 p-3">
-                    <p className="text-xs font-semibold text-green-800 mb-2">
-                      Selected services
-                    </p>
-
-                    <div className="flex flex-wrap gap-2">
-                      {selectedServices
-                        .slice()
-                        .sort((a, b) => a.label.localeCompare(b.label))
-                        .map((service) => (
-                          <button
-                            key={service.uuid}
-                            type="button"
-                            onClick={() => handleServiceChange(service.uuid)}
-                            className="inline-flex items-center gap-2 rounded-full border border-green-300 bg-white px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100 hover:cursor-pointer"
-                          >
-                            <span>{service.label}</span>
-                            <span className="text-xs">✕</span>
-                          </button>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                {filteredServices.length === 0 ? (
-                  <div className="rounded border bg-gray-50 p-6 text-center text-sm text-gray-600">
-                    No services found in this category.
-                  </div>
-                ) : (
-                  <div
-                    className={`rounded-xl border border-gray-200 bg-white/60 p-2 ${
-                      shouldServicesScroll
-                        ? "max-h-[34rem] overflow-y-auto pr-1"
-                        : "overflow-visible"
-                    }`}
-                  >
-                    <div className="grid grid-cols-1 gap-3">
-                      {filteredServices.map((service) => {
-                        const isSelected = service.selected;
-
-                        return (
-                          <button
-                            key={service.uuid}
-                            type="button"
-                            onClick={() => handleServiceChange(service.uuid)}
-                            className={`w-full text-left rounded-xl border p-4 transition hover:cursor-pointer ${
-                              isSelected
-                                ? "border-green-700 bg-green-50 ring-1 ring-green-700"
-                                : "border-gray-200 bg-white hover:border-green-300 hover:shadow-sm"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1">
-                                <p
-                                  className={`text-sm font-semibold ${
-                                    isSelected ? "text-green-700" : "text-gray-600"
-                                  }`}
-                                >
-                                  {formatCategoryLabel(service.category || "Other")}
-                                </p>
-
-                                <h3 className="text-base sm:text-lg font-bold mt-1 text-gray-900">
-                                  {service.label}
-                                </h3>
-
-                                {service.description && (
-                                  <p className="mt-2 text-sm text-gray-700 leading-relaxed">
-                                    {service.description}
-                                  </p>
-                                )}
-
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {service.requires_images && (
-                                    <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                                      Photos helpful
-                                    </span>
-                                  )}
-
-                                  {service.urgent_allowed && (
-                                    <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
-                                      Urgent booking available
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div
-                                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold border ${
-                                  isSelected
-                                    ? "bg-green-700 text-white border-green-700"
-                                    : "bg-white text-gray-600 border-gray-300"
-                                }`}
-                              >
-                                {isSelected ? "Selected" : "Click to select"}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {hasSelectedServices && allSelectedAllowUrgent && (
-            <div className="rounded border border-amber-200 bg-amber-50 px-4 py-4 space-y-3">
-              <label
-                className={`flex items-start gap-3 ${
-                  hasMultipleSelectedServices
-                    ? "cursor-not-allowed opacity-80"
-                    : "cursor-pointer"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={isUrgent}
-                  onChange={(e) => setIsUrgent(e.target.checked)}
-                  disabled={hasMultipleSelectedServices}
-                  className="mt-1 h-4 w-4 shrink-0 accent-amber-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                <div className="flex flex-col">
-                  <span className="font-medium text-sm sm:text-base text-amber-900">
-                    Request urgent priority booking
-                  </span>
-                  <span className="text-xs sm:text-sm text-amber-800">
-                    Urgent service is available for selected maintenance services and includes an additional{" "}
-                    <strong>${URGENT_FEE_AMOUNT} + GST</strong> priority fee.
-                  </span>
-                </div>
-              </label>
-
-              {hasMultipleSelectedServices ? (
-                <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  Only 1 urgent request can be done per job. Please select one
-                  service only to request urgent priority booking.
-                </div>
-              ) : isUrgent ? (
-                <div className="text-xs text-amber-900 italic space-y-1">
-                  <p>
-                    Urgent requests are prioritised and scheduled as soon as
-                    possible, subject to availability.
-                  </p>
-                  <p>
-                    The urgent fee will be included in your quote total before
-                    acceptance.
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          )}
-
-          {hasMixedUrgentEligibility && (
-            <div className="rounded border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-              Urgent booking is only available when all selected services are
-              urgent-eligible. For lawn care or mixed bookings, please submit a
-              separate request if you need urgent maintenance work.
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div className="font-semibold">Upload Images</div>
-            <p className="text-xs italic text-gray-700">
-              Please upload images if needed. Maximum {MAX_IMAGE_UPLOADS} images.
-            </p>
-
-            <div className="text-xs text-gray-600">
-              {imageInputs.length} / {MAX_IMAGE_UPLOADS} image slots used
-            </div>
-
-            {imageInputs.map((img, index) => (
-              <div
-                key={img.id}
-                className="rounded border border-gray-200 p-3 bg-white/70 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium text-gray-700">
-                    Image {index + 1}
-                  </div>
-
-                  {imageInputs.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveImageSlot(img.id)}
-                      className="text-sm font-medium text-red-600 hover:text-red-700 hover:underline hover:cursor-pointer"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-
-                <input
-                  type="text"
-                  placeholder={`Image ${index + 1} eg front yard`}
-                  value={img.label}
-                  onChange={(e) => handleImageLabelChange(img.id, e.target.value)}
-                  className="input-border w-full border px-3 py-2 rounded"
-                />
-
-                <input
-                  key={`${imageInputKey}_${img.id}`}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) =>
-                    handleImageFileChange(img.id, e.target.files?.[0] || null)
-                  }
-                  className="input-border w-full border px-3 py-2 rounded hover:cursor-pointer"
-                />
-
-                {img.previewUrl && (
-                  <div className="space-y-2 block w-22 h-24 overflow-hidden rounded">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenPreview(img.previewUrl!)}
-                      className="block w-22 h-16 overflow-hidden rounded bg-gray-100 hover:opacity-90 transition hover:cursor-pointer"
-                    >
-                      <img
-                        src={img.previewUrl}
-                        alt={`Preview ${index + 1}`}
-                        className="w-full h-full rounded object-cover"
-                      />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleOpenPreview(img.previewUrl!)}
-                      className="text-xs text-green-700 hover:text-green-900 hover:underline hover:cursor-pointer"
-                    >
-                      Click to enlarge
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={handleAddImageSlot}
-              disabled={!canAddMoreImages}
-              className={`w-full border border-dashed py-2 rounded transition ${
-                canAddMoreImages
-                  ? "border-green-700 text-green-700 hover:bg-green-50 hover:cursor-pointer"
-                  : "border-gray-300 text-gray-400 cursor-not-allowed bg-gray-50"
-              }`}
-            >
-              {canAddMoreImages
-                ? "+ Add another image"
-                : `Maximum ${MAX_IMAGE_UPLOADS} images reached`}
-            </button>
-          </div>
-
-          <div className="rounded border border-gray-200 bg-white px-4 py-4">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={agreedToPrivacy}
-                onChange={(e) => setAgreedToPrivacy(e.target.checked)}
-                className="mt-1 h-4 w-4 shrink-0 accent-green-700 cursor-pointer"
-              />
-              <span className="text-sm text-gray-700 leading-relaxed">
-                By using our services, you agree that Happy Property may collect,
-                store, and use your information for business purposes related to
-                your enquiry, quote, booking, and service delivery. Read our{" "}
-                <a
-                  href="/privacy-policies"
-                  className="text-green-700 font-semibold underline hover:text-green-900"
-                >
-                  Privacy Policy
-                </a>
-                .
-              </span>
-            </label>
-          </div>
+          <PrivacyConsent
+            checked={agreedToPrivacy}
+            onChange={setAgreedToPrivacy}
+          />
 
           <div className="py-5">
             <button

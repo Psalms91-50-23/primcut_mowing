@@ -91,39 +91,7 @@ export default function ServicePage(props: Props) {
   };
 
   loadServicesFromJson();
-    // const fetchServices = async () => {
-    //   try {
-    //     setServicesLoading(true);
-    //     setServicesError(null);
-
-    //     const res = await fetch("/api/services", {
-    //       method: "GET",
-    //       // signal: controller.signal,
-    //     });
-
-    //     const json = await res.json();
-
-    //     if (!res.ok) {
-    //       throw new Error(json?.error || "Failed to fetch services");
-    //     }
-
-    //     const incomingServices = Array.isArray(json?.data) ? json.data : [];
-
-    //     setServices(incomingServices);
-    //   } catch (err: any) {
-    //     if (err?.name === "AbortError") return;
-
-    //     console.error("Failed to fetch services:", err);
-    //     setServices([]);
-    //     setServicesError(err?.message || "Failed to load services");
-    //   } finally {
-    //     setServicesLoading(false);
-    //   }
-    // };
-
-    // fetchServices();
-
-    // return () => controller.abort();
+   
   }, []);
 
   const categories = useMemo(() => {

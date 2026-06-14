@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useCustomer } from "@/context/CustomerContext";
 import { nzPhoneFromIntl } from "@/utils/phone";
 import { SERVICES } from "@/data/services";
+import ServiceSelector from "@/components/ServiceSelector";
 
 type ServiceOption = {
   uuid: string;
@@ -424,162 +425,37 @@ export default function InquiryPage() {
               className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-0"
             />
           </div>
+// --- IGNORE ---
+          <ServiceSelector
+            services={services.map((service) => ({
+              ...service,
+              selected: form.services.includes(service.label),
+            }))}
+            categories={categories}
+            filteredServices={filteredServices.map((service) => ({
+              ...service,
+              selected: form.services.includes(service.label),
+            }))}
+            selectedServices={selectedServices.map((service) => ({
+              ...service,
+              selected: true,
+            }))}
+            selectedServicesCount={selectedServicesCount}
+            countsByCategory={countsByCategory}
+            activeServiceCategory={activeServiceCategory}
+            isLoadingServices={isLoadingServices}
+            shouldServicesScroll={shouldServicesScroll}
+            onCategoryChange={setActiveServiceCategory}
+            onServiceChange={(serviceUuid) => {
+              const service = services.find((s) => s.uuid === serviceUuid);
 
-          <div className="space-y-4">
-            <div className="flex flex-col gap-2">
-              <label className="block text-sm font-medium">
-                Services (optional)
-              </label>
-              <p className="text-sm text-gray-600">
-                Selected services stay at the top and can be removed without
-                scrolling.
-              </p>
-            </div>
-
-            {isLoadingServices ? (
-              <div className="text-sm text-gray-600">Loading services...</div>
-            ) : services.length === 0 ? (
-              <div className="text-sm text-red-600">
-                No services available right now.
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  {categories.map((cat) => {
-                    const active = cat === activeServiceCategory;
-                    const hasSelectedInCategory =
-                      cat === "all"
-                        ? selectedServices.length > 0
-                        : services.some(
-                            (service) =>
-                              service.category === cat &&
-                              form.services.includes(service.label)
-                          );
-
-                    return (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setActiveServiceCategory(cat)}
-                        className={[
-                          "px-4 py-2 rounded-full text-sm font-semibold transition border hover:cursor-pointer",
-                          active
-                            ? "bg-green-700 text-white border-green-700 shadow"
-                            : hasSelectedInCategory
-                            ? "bg-green-50 text-green-800 border-green-300"
-                            : "bg-white text-gray-800 border-gray-200 hover:border-green-300 hover:ring-2 hover:ring-green-200",
-                        ].join(" ")}
-                      >
-                        {cat === "all" ? "All Services" : formatCategoryLabel(cat)}
-                        <span className="ml-2 opacity-80">
-                          ({countsByCategory[cat] || 0})
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="flex items-center justify-between rounded border border-gray-200 bg-white px-4 py-3">
-                  <div className="text-sm font-medium text-gray-700">
-                    {selectedServicesCount > 0
-                      ? `${selectedServicesCount} service${
-                          selectedServicesCount > 1 ? "s" : ""
-                        } selected`
-                      : "Choose one or more services"}
-                  </div>
-
-                  {selectedServicesCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleClearAllServices}
-                      className="text-sm font-medium text-red-600 hover:text-red-700 hover:underline hover:cursor-pointer"
-                    >
-                      Clear all
-                    </button>
-                  )}
-                </div>
-
-                {selectedServicesCount > 0 && (
-                  <div className="rounded-xl border border-green-200 bg-green-50 p-3">
-                    <p className="text-xs font-semibold text-green-800 mb-2">
-                      Selected services
-                    </p>
-
-                    <div className="flex flex-wrap gap-2">
-                      {selectedServices
-                        .slice()
-                        .sort((a, b) => a.label.localeCompare(b.label))
-                        .map((service) => (
-                          <button
-                            key={service.uuid}
-                            type="button"
-                            onClick={() => toggleService(service.label)}
-                            className="inline-flex items-center gap-2 rounded-full border border-green-300 bg-white px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100 hover:cursor-pointer"
-                          >
-                            <span>{service.label}</span>
-                            <span className="text-xs">✕</span>
-                          </button>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                {filteredServices.length === 0 ? (
-                  <div className="rounded border bg-gray-50 p-6 text-center text-sm text-gray-600">
-                    No services found in this category.
-                  </div>
-                ) : (
-                  <div
-                    className={`rounded-xl border border-gray-200 bg-white/60 p-2 ${
-                      shouldServicesScroll
-                        ? "max-h-[20rem] overflow-y-auto pr-1"
-                        : "overflow-visible"
-                    }`}
-                  >
-                    <div className="grid grid-cols-1 gap-2">
-                      {filteredServices.map((service) => {
-                        const isSelected = form.services.includes(service.label);
-
-                        return (
-                          <button
-                            key={service.uuid}
-                            type="button"
-                            onClick={() => toggleService(service.label)}
-                            className={`w-full text-left rounded-lg border px-4 py-3 transition hover:cursor-pointer ${
-                              isSelected
-                                ? "border-green-700 bg-green-50 ring-1 ring-green-700"
-                                : "border-gray-200 bg-white hover:border-green-300"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-gray-500 mb-1">
-                                  {formatCategoryLabel(service.category || "Other")}
-                                </p>
-                                <p className="text-sm sm:text-base font-medium text-gray-900">
-                                  {service.label}
-                                </p>
-                              </div>
-
-                              <div
-                                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold border ${
-                                  isSelected
-                                    ? "bg-green-700 text-white border-green-700"
-                                    : "bg-white text-gray-600 border-gray-300"
-                                }`}
-                              >
-                                {isSelected ? "Selected" : "Select"}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+              if (service) {
+                toggleService(service.label);
+              }
+            }}
+            onClearAll={handleClearAllServices}
+            formatCategoryLabel={formatCategoryLabel}
+          />
 
           <div>
             <label className="block text-sm font-medium mb-1">Message</label>
