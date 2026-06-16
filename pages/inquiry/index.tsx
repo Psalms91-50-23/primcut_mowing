@@ -425,7 +425,6 @@ export default function InquiryPage() {
               className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-0"
             />
           </div>
-// --- IGNORE ---
           <ServiceSelector
             services={services.map((service) => ({
               ...service,
@@ -455,6 +454,7 @@ export default function InquiryPage() {
             }}
             onClearAll={handleClearAllServices}
             formatCategoryLabel={formatCategoryLabel}
+            showServiceBadges={false}
           />
 
           <div>

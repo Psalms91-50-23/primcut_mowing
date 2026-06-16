@@ -23,6 +23,7 @@ type ServiceSelectorProps = {
   onServiceChange: (serviceUuid: string) => void;
   onClearAll: () => void;
   formatCategoryLabel: (category: string) => string;
+  showServiceBadges?: boolean;
 };
 
 export default function ServiceSelector({
@@ -39,6 +40,7 @@ export default function ServiceSelector({
   onServiceChange,
   onClearAll,
   formatCategoryLabel,
+  showServiceBadges = true
 }: ServiceSelectorProps) {
   return (
     <div className="space-y-4">
@@ -183,21 +185,22 @@ export default function ServiceSelector({
                             </p>
                           )}
 
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {service.requires_images && (
-                              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                                Photos helpful
-                              </span>
-                            )}
+                          {showServiceBadges && (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {service.requires_images && (
+                                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                                    Photos helpful
+                                  </span>
+                                )}
 
-                            {service.urgent_allowed && (
-                              <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
-                                Urgent booking available
-                              </span>
+                                {service.urgent_allowed && (
+                                  <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                                    Urgent booking available
+                                  </span>
+                                )}
+                              </div>
                             )}
-                          </div>
                         </div>
-
                         <div
                           className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold border ${
                             isSelected
