@@ -91,10 +91,10 @@ const NavBar = () => {
 
   return (
     <>
-      <div className="fixed top-0 left-0 right-0 z-50 w-full bg-green-900 shadow-md">
+      <div className="fixed top-0 left-0 right-0 z-50 w-full">
         <nav
           ref={navRef}
-          className="mx-auto flex w-full max-w-[1600px] items-center justify-between px-4 py-3 text-white"
+          className="mx-auto flex w-full max-w-[1600px] items-center justify-between px-4 py-3 text-white bg-green-900"
         >
           <div className="min-w-0 flex-1">
             <h1 className="m-0 flex min-w-0 items-center p-0 font-bold leading-none">
