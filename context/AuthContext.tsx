@@ -227,22 +227,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [fetchUser]);
 
-  useEffect(() => {
-    if (!router.isReady) return;
-    if (loading) return;
-    if (!role) return;
+  // useEffect(() => {
+  //   if (!router.isReady) return;
+  //   if (loading) return;
+  //   if (!role) return;
 
-    const target = roleRedirectMap[role];
-    if (!target) return;
+  //   const target = roleRedirectMap[role];
+  //   if (!target) return;
 
-    const isHomeRoute = router.pathname === "/";
-    const alreadyAtTarget =
-      router.pathname === target || router.asPath === target;
+  //   const isHomeRoute = router.pathname === "/";
+  //   const alreadyAtTarget =
+  //     router.pathname === target || router.asPath === target;
 
-    if (isHomeRoute && !alreadyAtTarget) {
-      router.replace(target);
-    }
-  }, [router.isReady, router.pathname, router.asPath, loading, role, router]);
+  //   if (isHomeRoute && !alreadyAtTarget) {
+  //     router.replace(target);
+  //   }
+  // }, [router.isReady, router.pathname, router.asPath, loading, role, router]);
 
   const value = useMemo<AuthContextType>(
     () => ({
